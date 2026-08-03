@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Permits plain-HTTP (cleartext) traffic.
+
+  Required, not a shortcut: Spoolman is a self-hosted service that in practice runs over plain HTTP on
+  a LAN (`http://spoolman.local:7912`, a Home Assistant add-on, a Docker host…), and it has no TLS of
+  its own. Since `targetSdk` is 28 or higher, Android blocks cleartext by default, so without this the
+  app cannot reach a typical Spoolman at all — the failure looks identical to an unreachable server,
+  which is exactly how it presented during testing.
+
+  Not scoped to specific domains because the server address is entered by the user at runtime and is
+  unknown at build time; there is no set of hostnames to enumerate here.
+
+  The trade-off is accepted deliberately: the only traffic this app makes is to the user's own Spoolman
+  instance, the data is a filament inventory, and Spoolman has no credentials to intercept
+  (DESIGN.md DEC-06, "Spoolman needs no credentials"). If a user fronts their instance with HTTPS, an `https://` address works
+  unchanged and gets TLS — this permits cleartext, it does not force it.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+   Backup policy for API 30 (the only pre-31 level this app supports, given minSdk 29 — API 29 and
+   30). Devices on API 31+ read data_extraction_rules.xml instead; the two must be kept in step.
+
+   Same single item as that file: the Spoolman server address in the `settings` Preferences
+   DataStore. See data_extraction_rules.xml for the reasoning.
+-->
+<full-backup-content>
+    <include domain="file" path="datastore/settings.preferences_pb" />
+</full-backup-content>

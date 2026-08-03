@@ -1,0 +1,22 @@
+*.iml
+.gradle
+/local.properties
+/src/.idea/caches
+/src/.idea/libraries
+/src/.idea/modules.xml
+/src/.idea/workspace.xml
+/src/.idea/navEditor.xml
+/src/.idea/assetWizardSettings.xml
+.DS_Store
+/src/build
+/src/captures
+.externalNativeBuild
+.cxx
+local.properties
+
+# Release signing. The keystore itself lives outside the repo; keystore.properties only points at
+# it and holds its passwords, so neither may ever be committed.
+keystore.properties
+*.jks
+*.keystore
+

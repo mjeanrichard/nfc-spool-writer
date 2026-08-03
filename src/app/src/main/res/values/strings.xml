@@ -1,0 +1,120 @@
+<resources>
+    <!--
+      Deliberately free of third-party product names. "K2 Plus" is Creality's and "Spoolman" is a
+      separate open-source project; naming either in the app title implies an affiliation that does
+      not exist, which Play's Impersonation policy rejects. Compatibility is stated in the store
+      description and in settings_about instead. See STORE_PLAN.md §2a.
+    -->
+    <string name="app_name">NFC Spool Writer</string>
+
+    <!-- Common actions -->
+    <string name="action_retry">Retry</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_done">Done</string>
+    <string name="action_settings">Settings</string>
+    <string name="action_refresh">Refresh</string>
+    <string name="action_back">Back</string>
+    <string name="action_more">More options</string>
+    <string name="action_read_tag">Read a tag</string>
+
+    <!-- Screen titles -->
+    <string name="title_spools">Choose a spool</string>
+    <string name="title_settings">Settings</string>
+    <string name="title_confirm">Review before writing</string>
+    <string name="title_write">Write tags</string>
+    <string name="title_read">Check a tag</string>
+    <string name="title_harness">Tag harness</string>
+
+    <!-- Settings -->
+    <string name="settings_server_label">Spoolman server</string>
+    <string name="settings_url_label">Server address</string>
+    <string name="settings_url_placeholder">http://spoolman.local:7912</string>
+    <string name="settings_url_hint">The scheme may be omitted; http is assumed.</string>
+    <string name="settings_save">Save</string>
+    <string name="settings_test">Test connection</string>
+    <string name="settings_saved">Saved.</string>
+    <string name="settings_test_ok">Connected to Spoolman successfully.</string>
+    <string name="settings_auth_note">Spoolman has no login of its own, so no credentials are
+        needed. If your instance sits behind a reverse proxy that requires authentication, this app
+        cannot get past it.</string>
+    <string name="settings_open_harness">Open tag harness (development)</string>
+    <string name="settings_about_title">About</string>
+    <string name="settings_about_body">Writes filament data to NFC tags for spools you own, in the
+        format the Creality K2, K2 Plus and K2 Max CFS reads. This app is not affiliated with,
+        endorsed by, or sponsored by Creality. Spoolman is a separate open-source project, also
+        unaffiliated.</string>
+
+    <!-- Spool list -->
+    <string name="spools_search_label">Search material, vendor, location…</string>
+    <string name="spools_not_configured">No Spoolman server configured yet.</string>
+    <string name="spools_configure">Set up server</string>
+    <string name="spools_none">Spoolman has no spools to show.</string>
+    <string name="spools_no_match">No spools match your search.</string>
+    <string name="spools_unnamed">Unnamed filament</string>
+    <string name="spools_id">Spoolman ID %1$d</string>
+    <string name="spools_truncated">Showing the first %1$d of %2$d spools.</string>
+    <string name="spools_swatch_colour">%1$s, colour #%2$s</string>
+    <string name="spools_swatch_no_colour">%1$s, no colour set</string>
+    <string name="spools_swatch_unknown_material">Unknown material</string>
+
+    <!-- Confirm -->
+    <string name="confirm_fields_title">Will be written to the tag</string>
+    <string name="confirm_notes_title">Assumptions made</string>
+    <string name="confirm_write">Write to tag</string>
+    <string name="confirm_unmappable_title">Cannot write this spool</string>
+    <string name="confirm_unmappable_hint">Set a material Creality recognises on this filament in
+        Spoolman, then come back.</string>
+    <string name="field_material">Material</string>
+    <string name="field_colour">Colour</string>
+    <string name="field_weight">Spool weight</string>
+    <string name="field_serial">Serial (Spoolman ID)</string>
+    <string name="field_supplier">Supplier ID</string>
+    <string name="field_batch">Batch</string>
+    <string name="field_date">Date code</string>
+
+    <!-- Read and check -->
+    <string name="read_tap">Hold the phone against a tag to see what is on it. Nothing is written.</string>
+    <string name="read_another">Tap another tag to check it.</string>
+    <string name="read_blank_title">Blank tag</string>
+    <string name="read_blank_body">This tag is unwritten. It still carries its factory key, so it is
+        ready to be written.</string>
+    <string name="read_written_title">Written tag</string>
+    <string name="read_written_body">This tag holds filament data in the format the CFS
+        reads.</string>
+    <string name="read_corrupt_title">Damaged tag</string>
+    <string name="read_corrupt_body">This tag was written in this format, but its contents no longer
+        make sense — most likely a write that was interrupted. Writing it again will repair
+        it.</string>
+    <string name="read_failed_title">Could not read this tag</string>
+    <string name="read_fields_title">On this tag</string>
+    <string name="read_material_unknown">Not in the material list (%1$s)</string>
+    <string name="read_spoolman_title">In Spoolman</string>
+    <string name="read_spoolman_loading">Looking this spool up…</string>
+    <string name="read_spoolman_location">Location: %1$s</string>
+
+    <!-- Write -->
+    <string name="write_tap">Hold the phone against the tag.</string>
+    <string name="write_done_heading">Tag written and verified.</string>
+    <string name="write_multi_tag_note">A genuine Creality spool carries two tags holding the same
+        data, so the printer can read one whichever way the spool sits. To match that, write another
+        tag — it gets exactly the same data, with no need to pick the spool again.</string>
+    <string name="write_session_heading">Written in this session:</string>
+    <string name="write_tag_done">UID %1$s</string>
+    <string name="write_success">Tag written and verified.</string>
+    <string name="write_another">Write another tag</string>
+    <string name="write_retry_hint">Hold the phone still and flat against the tag, then try
+        again.</string>
+    <string name="write_partial_warning">This tag may be partly written and inconsistent. Write it
+        again fully before using the spool.</string>
+    <string name="write_overwrite_title">Tag already has data</string>
+    <string name="write_overwrite_body">This tag already contains: %1$s</string>
+    <string name="write_overwrite_retap">After confirming, tap the same tag again — the connection
+        cannot be held open while this prompt is showing.</string>
+    <string name="write_overwrite_confirm">Overwrite</string>
+
+    <!-- NFC capability -->
+    <string name="nfc_no_hardware">This device has no NFC hardware, so it cannot write tags.</string>
+    <string name="nfc_no_mifare">This phone\'s NFC chipset cannot read or write MIFARE Classic tags.
+        That is a hardware limitation with no software workaround — an NXP-based phone is
+        required.</string>
+</resources>

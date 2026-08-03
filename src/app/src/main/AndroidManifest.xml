@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="android.permission.NFC" />
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!--
+      The app is useless without an NFC radio, so it is strictly required — the lint warning
+      about over-restricting device compatibility is deliberate here, not an oversight.
+    -->
+    <uses-feature
+        android:name="android.hardware.nfc"
+        android:required="true"
+        tools:ignore="UnnecessaryRequiredFeature" />
+
+    <!--
+      MIFARE Classic is a proprietary NXP protocol, so android.nfc.tech.MifareClassic only works on
+      phones with an NXP NFC controller. android.hardware.nfc above does NOT imply that — every NFC
+      phone declares it — so this vendor feature is what actually filters out Broadcom/Qualcomm-NFC
+      devices, which can see a Classic tag but never authenticate a sector.
+
+      This only filters a *store* listing; PackageManager ignores uses-feature at install time, so a
+      sideloaded APK still lands on incompatible phones. The startup hasSystemFeature() check is the
+      thing that protects those users (REQUIREMENTS.md §3/§7).
+    -->
+    <uses-feature
+        android:name="com.nxp.mifare"
+        android:required="true" />
+
+    <application
+        android:name=".NfcSpoolWriterApplication"
+        android:allowBackup="true"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:networkSecurityConfig="@xml/network_security_config"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.NfcSpoolWriter">
+        <!--
+          Deliberately NOT a declared handler for android.nfc.action.TECH_DISCOVERED: tapping a tag
+          must never launch or foreground this app (REQUIREMENTS.md §6). Tags are only ever handled
+          through NFC reader mode, which binds while a tap-requesting screen is resumed and takes
+          priority over tag dispatch anyway. The uses-feature entries above, not a tech-list, are
+          what carry the device-compatibility signal.
+
+          `launchMode="singleTop"` is kept, but no longer for tag dispatch: it stops a relaunch from
+          the launcher (or a notification) stacking a second copy of the activity over a running one.
+        -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:theme="@style/Theme.NfcSpoolWriter"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+
+</manifest>

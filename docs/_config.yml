@@ -1,0 +1,7 @@
+# GitHub Pages configuration. Pages is enabled purely so the app has a publicly reachable privacy
+# policy URL, which Google Play requires; the theme is only here so the page renders legibly rather
+# than as unstyled HTML.
+title: NFC Spool Writer
+description: Writes filament data to NFC tags for spools you own.
+theme: jekyll-theme-minimal
+
