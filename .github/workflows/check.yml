@@ -1,0 +1,53 @@
+name: Check
+
+# The same verification pass as `scripts/check.sh` locally: debug build, unit tests, lint. It runs on
+# every push and pull request, and the release workflow calls it as well, so no bundle is ever built
+# from a tree whose tests are red.
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+# A pull request that gets several pushes only needs its newest run. Pushes to master and the runs
+# triggered by the release workflow are never cancelled.
+concurrency:
+  group: check-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build, test and lint
+        run: ./scripts/check.sh
+
+      # Uploaded even when the run fails - that is the case where they are actually needed, since the
+      # console output names the failing tests but not what they asserted.
+      - name: Upload test and lint reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: check-reports
+          path: |
+            src/app/build/reports/tests/testDebugUnitTest/
+            src/app/build/test-results/testDebugUnitTest/
+            src/app/build/reports/lint-results-debug.*
+          retention-days: 14
+          if-no-files-found: ignore

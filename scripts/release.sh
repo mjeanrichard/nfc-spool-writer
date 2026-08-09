@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 #
-# Builds the signed Android App Bundle for a Play upload, plus lint on the release variant.
+# Builds the signed release artifacts, plus lint on the release variant:
+#
+#   * the Android App Bundle, for the Play upload;
+#   * an APK, which is what a GitHub release attaches — an .aab cannot be installed by hand.
 #
 # Signing credentials come from either source, checked in this order by app/build.gradle.kts:
 #
@@ -11,7 +14,7 @@
 # Neither present means the bundle would be silently unsigned, so this refuses to build rather than
 # producing an artifact that only fails later, at upload time.
 #
-#   ./scripts/release.sh                # bundle + lint
+#   ./scripts/release.sh                # bundle + apk + lint
 #   ./scripts/release.sh --rerun-tasks  # extra flags are forwarded to Gradle
 #
 set -euo pipefail
@@ -45,5 +48,6 @@ fi
 
 exec "$repo_root/scripts/gradle.sh" \
     :app:bundleRelease \
+    :app:assembleRelease \
     :app:lintRelease \
     "$@"

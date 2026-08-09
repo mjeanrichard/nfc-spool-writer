@@ -1,8 +1,8 @@
-name: Release bundle
+name: Release
 
-# Produces the signed Android App Bundle for a Play upload. Manual by default: a release is a
-# deliberate act, and every upload burns a versionCode. Tag pushes build too, so `v1.0` produces a
-# matching artifact without a second click.
+# Produces the signed artifacts: the App Bundle for a Play upload, and an APK for sideloading.
+# Manual by default: a release is a deliberate act, and every upload burns a versionCode. Pushing a
+# `v*` tag builds too, and additionally publishes a GitHub release with both artifacts attached.
 on:
   workflow_dispatch:
     inputs:
@@ -18,8 +18,18 @@ permissions:
   contents: read
 
 jobs:
+  # A tag is not a promise that the tree was ever green, so the full local verification pass runs
+  # first and the build only starts if it passes.
+  check:
+    uses: ./.github/workflows/check.yml
+
   bundle:
+    needs: check
     runs-on: ubuntu-latest
+
+    # Needed to create the GitHub release; the reusable check workflow keeps the read-only default.
+    permissions:
+      contents: write
 
     steps:
       - uses: actions/checkout@v4
@@ -36,9 +46,27 @@ jobs:
       # versionCode must be unique per upload or Play rejects the bundle. The run number is
       # monotonic per workflow and never reused, so it cannot collide with an earlier upload.
       # Offset keeps room for the versionCode = 1 already reserved for the first manual build.
-      - name: Compute versionCode
+      #
+      # versionName comes from the tag when there is one, so `v1.0.1` and the version the user sees
+      # in the app cannot drift apart. The input is read from the environment rather than
+      # interpolated into the script, which would let a crafted input inject shell.
+      - name: Resolve version
         id: version
-        run: echo "code=$(( ${{ github.run_number }} + 1 ))" >> "$GITHUB_OUTPUT"
+        env:
+          INPUT_VERSION_NAME: ${{ inputs.version_name }}
+        run: |
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            name="${GITHUB_REF_NAME#v}"
+          else
+            name="$INPUT_VERSION_NAME"
+          fi
+          {
+            echo "code=$(( ${{ github.run_number }} + 1 ))"
+            echo "name=$name"
+            # Blank versionName means build.gradle.kts decides, which this job cannot see - so the
+            # run number stands in for naming the artifacts.
+            echo "label=${name:-run${{ github.run_number }}}"
+          } >> "$GITHUB_OUTPUT"
 
       # The secret holds the .jks base64-encoded because GitHub secrets are text-only. It is
       # written outside the workspace so it can never be picked up by a build glob or an artifact.
@@ -53,44 +81,84 @@ jobs:
           mkdir -p "$RUNNER_TEMP/signing"
           echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/signing/upload.jks"
 
-      - name: Build signed bundle
+      - name: Build signed bundle and APK
         env:
           ANDROID_KEYSTORE_FILE: ${{ runner.temp }}/signing/upload.jks
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
           ORG_GRADLE_PROJECT_versionCodeOverride: ${{ steps.version.outputs.code }}
-          ORG_GRADLE_PROJECT_versionNameOverride: ${{ inputs.version_name }}
+          ORG_GRADLE_PROJECT_versionNameOverride: ${{ steps.version.outputs.name }}
         run: ./scripts/release.sh
 
-      # Gradle leaves an unsigned bundle when credentials are missing rather than failing, so that a
-      # machine without the key can still run lintRelease. That trade-off has to be paid for here:
-      # without this check a misconfigured secret would produce an artifact that only fails much
-      # later, at upload time.
-      - name: Verify the bundle is signed
+      # Gathering both artifacts under their published names once means the verification steps, the
+      # workflow artifact and the GitHub release all work from the same two files.
+      - name: Stage release assets
+        id: assets
+        env:
+          LABEL: ${{ steps.version.outputs.label }}
         run: |
-          bundle=$(find src/app/build/outputs/bundle/release -name '*.aab' -print -quit)
-          if [ -z "$bundle" ]; then
-            echo "::error::No .aab was produced."
+          assets="$RUNNER_TEMP/release-assets"
+          rm -rf "$assets" && mkdir -p "$assets"
+
+          for pair in bundle:aab apk:apk; do
+            output_dir="src/app/build/outputs/${pair%:*}/release"
+            extension="${pair#*:}"
+            built=$(find "$output_dir" -name "*.$extension" -print -quit)
+            if [ -z "$built" ]; then
+              echo "::error::No .$extension was produced in $output_dir."
+              exit 1
+            fi
+            cp "$built" "$assets/nfc-spool-writer-$LABEL.$extension"
+          done
+
+          {
+            echo "dir=$assets"
+            echo "aab=$assets/nfc-spool-writer-$LABEL.aab"
+            echo "apk=$assets/nfc-spool-writer-$LABEL.apk"
+          } >> "$GITHUB_OUTPUT"
+          ls -l "$assets"
+
+      # Gradle leaves the artifacts unsigned when credentials are missing rather than failing, so that
+      # a machine without the key can still run lintRelease. That trade-off has to be paid for here:
+      # without this check a misconfigured secret would produce artifacts that only fail much later,
+      # at upload time - or worse, an APK that installs for nobody.
+      #
+      # The two artifacts need different tools. The bundle carries a JAR signature, but the APK does
+      # not: minSdk is 29, so AGP signs it with APK Signature Scheme v2 and META-INF holds no
+      # certificate at all - inspecting the zip entries would report every APK as unsigned.
+      - name: Verify the artifacts are signed
+        env:
+          AAB: ${{ steps.assets.outputs.aab }}
+          APK: ${{ steps.assets.outputs.apk }}
+        run: |
+          # jarsigner exits 0 even for an unsigned jar unless -strict is passed, and -strict would
+          # fail on the self-signed upload certificate, so the verdict has to come from the output.
+          if ! jarsigner -verify "$AAB" | grep -q '^jar verified\.'; then
+            echo "::error::$(basename "$AAB") is NOT signed - check the ANDROID_* secrets."
             exit 1
           fi
-          if ! unzip -l "$bundle" | grep -qE 'META-INF/.*\.(RSA|DSA|EC)$'; then
-            echo "::error::$bundle is NOT signed - check the ANDROID_* secrets."
-            unzip -l "$bundle" | grep META-INF || true
+          echo "Signed: $(basename "$AAB")"
+
+          apksigner=$(find "${ANDROID_HOME:?}/build-tools" -name apksigner | sort -V | tail -1)
+          if [ -z "$apksigner" ]; then
+            echo "::error::apksigner not found under $ANDROID_HOME/build-tools."
             exit 1
           fi
-          echo "Signed: $bundle"
+          "$apksigner" verify --print-certs "$APK"
+          echo "Signed: $(basename "$APK")"
 
       # Every .so must start on a 16 KB boundary or the app breaks on 16 KB-page devices, which Play
       # requires support for. The AAB does contain native code (AndroidX ships
       # libandroidx.graphics.path.so and libdatastore_shared_counter.so), so this is a real check
       # rather than a formality.
       - name: Verify 16 KB page alignment
+        env:
+          AAB: ${{ steps.assets.outputs.aab }}
         run: |
-          bundle=$(find src/app/build/outputs/bundle/release -name '*.aab' -print -quit)
           work="$RUNNER_TEMP/aab"
           rm -rf "$work" && mkdir -p "$work"
-          unzip -q "$bundle" -d "$work"
+          unzip -q "$AAB" -d "$work"
 
           mapfile -t libs < <(find "$work" -name '*.so')
           if [ ${#libs[@]} -eq 0 ]; then
@@ -123,11 +191,11 @@ jobs:
           fi
           echo "Release BuildConfig.DEBUG is false; harness route is not registered."
 
-      - name: Upload bundle
+      - name: Upload bundle and APK
         uses: actions/upload-artifact@v4
         with:
-          name: bundle-${{ steps.version.outputs.code }}
-          path: src/app/build/outputs/bundle/release/*.aab
+          name: release-${{ steps.version.outputs.label }}
+          path: ${{ steps.assets.outputs.dir }}/*
           retention-days: 30
           if-no-files-found: error
 
@@ -141,3 +209,37 @@ jobs:
             src/app/build/outputs/mapping/release/
           retention-days: 30
           if-no-files-found: ignore
+
+      # Tag pushes only: a manual run is for checking that a build still works, not for publishing.
+      # `--clobber` on the update path makes re-running a failed tag build idempotent.
+      - name: Publish GitHub release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ASSETS: ${{ steps.assets.outputs.dir }}
+          VERSION_CODE: ${{ steps.version.outputs.code }}
+        run: |
+          notes=$(cat <<EOF
+          Install the \`.apk\` directly on the phone; the \`.aab\` is the Play upload artifact and
+          cannot be installed by hand.
+
+          The APK is signed with the **upload key**, not the Play app-signing key, so a sideloaded
+          install cannot later be upgraded in place by the Play version - uninstall first if you
+          switch. versionCode \`$VERSION_CODE\`.
+          EOF
+          )
+
+          # A pre-release tag carries a suffix: v1.0.0-rc1, v1.1-beta2.
+          extra=()
+          case "$GITHUB_REF_NAME" in *-*) extra=(--prerelease);; esac
+
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" "$ASSETS"/* --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" \
+              --title "$GITHUB_REF_NAME" \
+              --notes "$notes" \
+              --generate-notes \
+              "${extra[@]}" \
+              "$ASSETS"/*
+          fi
