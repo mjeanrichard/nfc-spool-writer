@@ -1,7 +1,23 @@
-# GitHub Pages configuration. Pages is enabled purely so the app has a publicly reachable privacy
-# policy URL, which Google Play requires; the theme is only here so the page renders legibly rather
-# than as unstyled HTML.
+# GitHub Pages configuration. Pages exists so the app has a publicly reachable privacy-policy URL,
+# which Google Play requires.
+#
+# No `theme:` on purpose. The stock project themes wrap the page in "View the Project on GitHub"
+# chrome with download buttons and a theme-attribution footer — the wrong register for a document a
+# Play reviewer reads to decide whether the app's data claims are credible. `_layouts/default.html`
+# is a plain document layout using the app's own palette instead.
+
 title: NFC Spool Writer
 description: Writes filament data to NFC tags for spools you own.
-theme: jekyll-theme-minimal
 
+# Project page, so the site is served from a subpath. `relative_url` in the layout depends on this
+# being right — get it wrong and every internal link and the favicon 404.
+baseurl: /nfc-spool-writer
+url: https://mjeanrichard.github.io
+repo_url: https://github.com/mjeanrichard/nfc-spool-writer
+
+# Every page uses the document layout; no per-file `layout:` front matter needed.
+defaults:
+  - scope:
+      path: ""
+    values:
+      layout: default

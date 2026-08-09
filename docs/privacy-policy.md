@@ -1,5 +1,5 @@
 ---
-title: Privacy Policy — NFC Spool Writer
+title: Privacy Policy
 description: Privacy policy for the NFC Spool Writer Android app.
 ---
 

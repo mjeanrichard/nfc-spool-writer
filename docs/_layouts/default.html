@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% if page.title and page.title != site.title %}{{ page.title }} · {{ site.title }}{% else %}{{ site.title }}{% endif %}</title>
+<meta name="description" content="{{ page.description | default: site.description }}">
+<link rel="icon" href="{{ '/icon.svg' | relative_url }}" type="image/svg+xml">
+<style>
+  /*
+    Deliberately not a project-page theme. This is read by people deciding whether to trust the app
+    with their network — and by a Play reviewer checking the privacy-policy link resolves — so it is
+    styled as a document, not as a landing page. Colours are the app's own palette so the page and
+    the thing it describes look like the same product.
+  */
+  :root {
+    --bg: #F7FAFF;
+    --surface: #FFFFFF;
+    --ink: #14171D;
+    --muted: #3C4450;
+    --rule: #DBE3F1;
+    --link: #8A5100;
+    --brand: #25476F;
+    --accent: #F0A030;
+    --measure: 68ch;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14171D;
+      --surface: #181B21;
+      --ink: #DDE1E9;
+      --muted: #BFC7D5;
+      --rule: #2D3037;
+      --link: #FFB951;
+      --brand: #A2C9FE;
+      --accent: #FFB951;
+    }
+  }
+
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+    font-size: 17px;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .masthead {
+    border-bottom: 1px solid var(--rule);
+    background: var(--surface);
+  }
+  .masthead-inner,
+  main,
+  .site-footer-inner {
+    max-width: var(--measure);
+    margin: 0 auto;
+    padding: 0 1.25rem;
+  }
+  .masthead-inner {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding-top: 0.9rem;
+    padding-bottom: 0.9rem;
+    flex-wrap: wrap;
+  }
+  .wordmark {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    color: var(--ink);
+    text-decoration: none;
+    margin-right: auto;
+  }
+  .wordmark img { width: 28px; height: 28px; display: block; border-radius: 6px; }
+  nav { display: flex; gap: 1.1rem; font-size: 0.9rem; }
+  nav a { color: var(--muted); text-decoration: none; }
+  nav a:hover, nav a:focus-visible { color: var(--link); text-decoration: underline; }
+  nav a[aria-current="page"] { color: var(--ink); font-weight: 600; }
+
+  main { padding-top: 2.75rem; padding-bottom: 3.5rem; }
+
+  h1, h2, h3 { line-height: 1.2; letter-spacing: -0.015em; text-wrap: balance; }
+  h1 { font-size: 2rem; margin: 0 0 1.5rem; }
+  h2 {
+    font-size: 1.25rem;
+    margin: 2.75rem 0 0.75rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--rule);
+  }
+  h3 { font-size: 1.05rem; margin: 1.75rem 0 0.5rem; }
+  p, ul, ol { margin: 0 0 1.1rem; }
+  ul, ol { padding-left: 1.35rem; }
+  li { margin-bottom: 0.35rem; }
+  li::marker { color: var(--accent); }
+
+  a { color: var(--link); text-underline-offset: 2px; }
+  a:hover { text-decoration-thickness: 2px; }
+  :focus-visible { outline: 2px solid var(--link); outline-offset: 2px; border-radius: 2px; }
+
+  strong { font-weight: 600; }
+  code {
+    font-family: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace;
+    font-size: 0.88em;
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    padding: 0.08em 0.34em;
+  }
+  hr { border: 0; border-top: 1px solid var(--rule); margin: 2.5rem 0; }
+  blockquote {
+    margin: 0 0 1.1rem;
+    padding-left: 1rem;
+    border-left: 3px solid var(--accent);
+    color: var(--muted);
+  }
+
+  /* The trailing disclaimer paragraph after the final rule. */
+  main > hr + p em, main > p > em { color: var(--muted); }
+
+  .site-footer {
+    border-top: 1px solid var(--rule);
+    background: var(--surface);
+    color: var(--muted);
+    font-size: 0.85rem;
+  }
+  .site-footer-inner {
+    padding-top: 1.5rem;
+    padding-bottom: 2.5rem;
+    display: flex;
+    gap: 0.5rem 1.25rem;
+    flex-wrap: wrap;
+    justify-content: space-between;
+  }
+  .site-footer a { color: var(--muted); }
+</style>
+</head>
+<body>
+  <header class="masthead">
+    <div class="masthead-inner">
+      <a class="wordmark" href="{{ '/' | relative_url }}">
+        <img src="{{ '/icon.svg' | relative_url }}" alt="">
+        <span>{{ site.title }}</span>
+      </a>
+      <nav>
+        <a href="{{ '/' | relative_url }}"{% if page.url == '/' %} aria-current="page"{% endif %}>Overview</a>
+        <a href="{{ '/privacy-policy' | relative_url }}"{% if page.url contains 'privacy' %} aria-current="page"{% endif %}>Privacy</a>
+        <a href="{{ site.repo_url }}">Source</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    {{ content }}
+  </main>
+
+  <footer class="site-footer">
+    <div class="site-footer-inner">
+      <span>Not affiliated with, endorsed by, or sponsored by Creality.</span>
+      <span><a href="{{ site.repo_url }}">Source on GitHub</a></span>
+    </div>
+  </footer>
+</body>
+</html>

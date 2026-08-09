@@ -17,12 +17,11 @@ K2 Plus and K2 Max CFS reads.
 - Blank **MIFARE Classic** tags.
 - A **Spoolman** instance running on your own network.
 
-## Links
+## Privacy
 
-- [Privacy Policy](privacy-policy)
-- [Source code](https://github.com/mjeanrichard/nfc-spool-writer)
+The app collects nothing. It stores one thing — the Spoolman address you type — on your device, and
+talks to no server other than that one. The [privacy policy](privacy-policy) sets out the detail.
 
 ---
 
-*Not affiliated with, endorsed by, or sponsored by Creality. Spoolman is a separate open-source
-project, also unaffiliated.*
+*Spoolman is a separate open-source project, also unaffiliated.*
