@@ -1,10 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="purple_200">#FFBB86FC</color>
-    <color name="purple_500">#FF6200EE</color>
-    <color name="purple_700">#FF3700B3</color>
-    <color name="teal_200">#FF03DAC5</color>
-    <color name="teal_700">#FF018786</color>
-    <color name="black">#FF000000</color>
-    <color name="white">#FFFFFFFF</color>
+    <!--
+      Launcher icon palette ("Signal"). Amber carries the filament, cyan the contactless signal;
+      keeping the two hues apart is what stops the spool and the arcs merging into one blob at 48dp.
+      Referenced only by the ic_launcher_* drawables — the Compose UI takes its colours from
+      ui/theme/Color.kt.
+    -->
+    <!--
+      Lifted from the original #101A26 after checking on a real device: against a near-black app
+      drawer that measured 1.06:1, so the icon had no silhouette at all. At 1.95:1 the circle reads
+      as an object while the amber still clears 4.4:1 against it.
+    -->
+    <color name="icon_background">#FF25476F</color>
+    <color name="icon_flange">#FFFFD08A</color>
+    <color name="icon_flange_shadow">#FFD98E28</color>
+    <color name="icon_filament">#FFF0A030</color>
+    <color name="icon_filament_shadow">#FFA86A0C</color>
+    <color name="icon_signal">#FF43D0EC</color>
 </resources>

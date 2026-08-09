@@ -79,9 +79,9 @@ until a build is uploaded, so the testing-track items come first.
       `https://mjeanrichard.github.io/nfc-spool-writer/privacy-policy` loads in a private window.
       — Phase 3
 - [ ] **Data Safety, content rating and target audience declarations** in the Console, from the
-      verified answers in [store/console-answers.md](store/console-answers.md). — Phase 4
+      verified answers in [STORE_CONTENT.md](STORE_CONTENT.md). — Phase 4
 - [ ] **Minimal store listing** — short/full description, icon, feature graphic, screenshots; copy
-      versioned in `store/listing.md`. — Phase 5
+      versioned in `STORE_LISTING.md`. — Phase 5
 
 ### 3.2 In-app changes required to pass review
 
@@ -112,5 +112,6 @@ until a build is uploaded, so the testing-track items come first.
 
 - [ ] **Reconcile the docs with store distribution** (STORE_PLAN Phase 7). `NFR-06` still says
       "sideload / personal APK for v1 — no Play Store listing, no store-listing assets and no
-      privacy-policy doc needed for v1", which contradicts the store track; `docs/privacy-policy.md`
-      and `store/` now exist. Record the app rename and the new `applicationId` there too.
+      privacy-policy doc needed for v1", which contradicts the store track; `docs/privacy-policy.md`,
+      `STORE_LISTING.md`, `STORE_CONTENT.md` and the `assets/` artwork now exist. Record the app
+      rename and the new `applicationId` there too.
