@@ -180,22 +180,35 @@ devices. The meaningful signal is the **`com.nxp.mifare`** system feature.
   store-side filter only:** `PackageManager` does not enforce `uses-feature` at install time, so a
   sideloaded APK installs on an incompatible phone regardless. That is precisely why the startup runtime
   check `HW-05` is required rather than optional — the manifest protects store users, the runtime
-  check protects sideload users, and v1 has only sideload users.
+  check protects sideload users, and `NFR-06` means the app now has both.
 - `NFR-04` — **Connectivity:** always-online; no offline mode.
 - `NFR-05` — **Localization:** English only for v1. Screen strings are centralized in `strings.xml`;
   error and failure messages are currently Kotlin string literals, so localising would mean moving those
   to string resources with format args.
-- `NFR-06` — **Distribution:** sideload / personal APK for v1 — no Play Store listing, no
-  store-listing assets and no privacy-policy doc needed for v1. Self-signed release keystore (generate
-  once, keep the private key safe — losing it means future updates can't cleanly replace the installed
-  app without uninstalling). The `uses-feature` declarations are in place regardless, so a change of
-  distribution needs no manifest work.
+- `NFR-06` — **Distribution:** Google Play, with a sideloadable APK attached to each GitHub release
+  for testers outside the Play tracks. This supersedes the original sideload-only scope; the
+  `uses-feature` declarations anticipated the change, so it cost no manifest work. Consequences that
+  are now requirements rather than optional extras: store-listing assets (`assets/`), listing copy
+  (`store/STORE_LISTING.md`), Console declarations (`store/STORE_CONTENT.md`) and a publicly hosted
+  privacy policy (`docs/privacy-policy.md`, served from GitHub Pages at
+  `https://mjeanrichard.github.io/nfc-spool-writer/privacy-policy`).
+  **Identity, fixed:** the app is **NFC Spool Writer**, applicationId `ch.jeanrichard.nfcspoolwriter`.
+  The name can change later; the applicationId cannot — it becomes the store URL and is frozen
+  permanently by the first upload.
+  **Signing:** an upload keystore held outside the repo, mirrored into GitHub secrets so CI produces
+  the upload artifacts. Under Play App Signing, Google holds the app signing key, which is what makes
+  a lost *upload* key recoverable — that enrolment is what turns the keystore from a single point of
+  failure into a replaceable credential. The APK attached to a GitHub release is signed with the
+  upload key, not the app signing key, so a sideloaded install cannot be upgraded in place by the
+  Play build.
+  Rationale, risks and the Console paperwork live in [store/STORE_PLAN.md](store/STORE_PLAN.md).
 - `NFR-07` — **Language/tooling:** Kotlin, Jetpack Compose (see [DESIGN.md](DESIGN.md) for
   architecture).
 - `NFR-08` — **Required hardware:** declare `<uses-feature android:name="android.hardware.nfc" android:required="true">`
-  and `<uses-feature android:name="com.nxp.mifare" android:required="true">`, so the Play-style
-  device-compatibility signal is correct even though this won't be Play-distributed — it's still the
-  right manifest hygiene and matters if distribution ever changes. These two entries carry that signal
+  and `<uses-feature android:name="com.nxp.mifare" android:required="true">`, so the device-compatibility
+  signal Play filters on is correct. Written before Play distribution was in scope, on the argument
+  that it was right manifest hygiene and would matter if distribution ever changed — which it since
+  has (`NFR-06`), at no manifest cost. These two entries carry that signal
   on their own; **no `TECH_DISCOVERED` intent filter or tech-list is declared**, because the app must
   not be launched by a tag tap (`UI-03`) and tags are only ever read through reader mode.
   The `com.nxp.mifare` entry is the one that actually excludes phones whose NFC chipset can't do

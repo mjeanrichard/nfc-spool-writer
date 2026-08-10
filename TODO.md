@@ -15,10 +15,7 @@ the tag format in [TAG_FORMAT_SPEC.md](TAG_FORMAT_SPEC.md) — none of those tra
       "could not reach the server", which was true but useless — a failure path can look convincing
       while being wrong about the cause.
 - [ ] **Logging.** A thin wrapper for diagnosing field issues after the fact. Only the development
-      harness logs anything today. Still no persistent write-history *feature* (`REQ-16`).
-- [ ] **Broader end-to-end validation** across several spools: different materials, vendors and weights,
-      and at least one spool whose material has **no exact catalog match**, to exercise the fallback path
-      against a printer. Only one material (HIPS, an exact match) has been validated so far.
+      harness logs anything today.
 
 ## 2. Manual hardware validation
 
@@ -62,11 +59,6 @@ item names the assumption it tests, so a surprise points at a specific fake fix.
       but has never run on real non-NXP hardware.
 
 ## 3. Play Store submission
-
-Rationale, specs, risks and the full Console answers are in [STORE_PLAN.md](STORE_PLAN.md); this is
-the outstanding-action list. The 14-day closed-testing window is the critical path and cannot start
-until a build is uploaded, so the testing-track items come first.
-
 ### 3.1 Blocking the closed-testing clock
 
 - [ ] **Recruit 12 closed-testing testers** (3D-printing / Spoolman / Creality communities, friends).
@@ -75,27 +67,13 @@ until a build is uploaded, so the testing-track items come first.
 - [ ] **Enrol in Play App Signing** — makes a lost upload key recoverable, and is what makes storing
       the upload key in a GitHub secret an acceptable risk. — Phase 1
 - [ ] **Off-machine backup of the upload keystore, before the first upload.** — Phase 1
-- [ ] **Enable GitHub Pages** from `docs/` on the default branch, then confirm
-      `https://mjeanrichard.github.io/nfc-spool-writer/privacy-policy` loads in a private window.
-      — Phase 3
 - [ ] **Data Safety, content rating and target audience declarations** in the Console, from the
-      verified answers in [STORE_CONTENT.md](STORE_CONTENT.md). — Phase 4
+      verified answers in [STORE_CONTENT.md](store/STORE_CONTENT.md). — Phase 4
 - [ ] **Minimal store listing** — short/full description, icon, feature graphic, screenshots; copy
-      versioned in `STORE_LISTING.md`. — Phase 5
+      versioned in `store/STORE_LISTING.md`. — Phase 5
 
 ### 3.2 In-app changes required to pass review
 
-- [ ] **Launcher icon and branding.** Real adaptive icon (spool + NFC wave), keeping the `<monochrome>`
-      layer and the 66dp safe zone; regenerate the legacy `.webp` at all five densities; export the
-      512×512 store PNG. While in there, delete the unused `purple_*` / `teal_*` template entries from
-      `res/values/colors.xml`. — Phase 2b
-- [ ] **Remove the tag harness from release builds.** Enable `buildConfig = true`, gate the Settings
-      button and the navigation route behind `BuildConfig.DEBUG`. A reviewer will otherwise find it,
-      and it exposes raw hex and trailer bits. — Phase 2c
-- [ ] **Replace the template backup rules.** `backup_rules.xml` and `data_extraction_rules.xml` are
-      unmodified templates, one still containing a literal `TODO:`. Write explicit rules that include
-      the `settings` DataStore. — Phase 2d
-- [ ] **Non-affiliation disclaimer as an About line on the Settings screen.** — Phase 2a
 - [ ] **Decide on R8** after the first stable release, not before it: `optimization { enable = false }`
       stays as-is for release one. — Phase 1
 
@@ -107,11 +85,3 @@ until a build is uploaded, so the testing-track items come first.
 - [ ] Verify the *release* build on-device: new name and icon, **no harness button in Settings**, and
       a full write-and-verify against a real tag.
 - [ ] Confirm Play accepts an upload targeting API 37 with this AGP; fall back to 36 if not. — Risk 6
-
-### 3.4 Documentation follow-up
-
-- [ ] **Reconcile the docs with store distribution** (STORE_PLAN Phase 7). `NFR-06` still says
-      "sideload / personal APK for v1 — no Play Store listing, no store-listing assets and no
-      privacy-policy doc needed for v1", which contradicts the store track; `docs/privacy-policy.md`,
-      `STORE_LISTING.md`, `STORE_CONTENT.md` and the `assets/` artwork now exist. Record the app
-      rename and the new `applicationId` there too.

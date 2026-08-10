@@ -12,10 +12,10 @@ Verified against the working tree on 2026-08-07.
 
 | Claim | How it was verified |
 |---|---|
-| Two permissions only, no `AD_ID` | [AndroidManifest.xml:5-6](src/app/src/main/AndroidManifest.xml#L5-L6) — `NFC`, `INTERNET` |
-| No analytics, ads, crash reporting or tracking SDK | Full dependency list in [build.gradle.kts](src/app/build.gradle.kts) is AndroidX + Ktor + kotlinx only |
-| One outbound call site, GET-only | [SpoolmanApiClient.kt:105](src/app/src/main/java/ch/jeanrichard/nfcspoolwriter/data/spoolman/SpoolmanApiClient.kt#L105) — `httpClient.get(url)`; endpoints are `GET /api/v1/health`, `/api/v1/spool`, `/api/v1/spool/{id}` |
-| Destination host is user-supplied, no developer backend | [SettingsRepository.kt](src/app/src/main/java/ch/jeanrichard/nfcspoolwriter/data/settings/SettingsRepository.kt) — no default URL is shipped |
+| Two permissions only, no `AD_ID` | [AndroidManifest.xml:5-6](../src/app/src/main/AndroidManifest.xml#L5-L6) — `NFC`, `INTERNET` |
+| No analytics, ads, crash reporting or tracking SDK | Full dependency list in [build.gradle.kts](../src/app/build.gradle.kts) is AndroidX + Ktor + kotlinx only |
+| One outbound call site, GET-only | [SpoolmanApiClient.kt:105](../src/app/src/main/java/ch/jeanrichard/nfcspoolwriter/data/spoolman/SpoolmanApiClient.kt#L105) — `httpClient.get(url)`; endpoints are `GET /api/v1/health`, `/api/v1/spool`, `/api/v1/spool/{id}` |
+| Destination host is user-supplied, no developer backend | [SettingsRepository.kt](../src/app/src/main/java/ch/jeanrichard/nfcspoolwriter/data/settings/SettingsRepository.kt) — no default URL is shipped |
 | One persisted value, local only | `stringPreferencesKey("spoolman_base_url")` is the only DataStore key; no file, DB or SharedPreferences writes anywhere |
 | No accounts or credentials | Spoolman has no auth of its own; the app has no login screen |
 
@@ -25,7 +25,7 @@ Verified against the working tree on 2026-08-07.
 
 - **URL** → `https://mjeanrichard.github.io/nfc-spool-writer/privacy-policy`
 
-  Source: [docs/privacy-policy.md](docs/privacy-policy.md), served by GitHub Pages from the
+  Source: [docs/privacy-policy.md](../docs/privacy-policy.md), served by GitHub Pages from the
   `docs/` folder on the default branch. **Confirm the exact URL resolves in a private browser window
   before filing it** — Pages needs enabling in repository settings first, and the extensionless form
   depends on how Pages serves the built file.
@@ -95,7 +95,7 @@ store listing if a reviewer wants them.
 **Android Backup is not a "No" breaker.** `allowBackup="true"` means the Spoolman URL can ride along
 in the user's own Google device backup. That is an OS-level user backup, not developer data
 collection, and does not change this answer. See
-[backup_rules.xml](src/app/src/main/res/xml/backup_rules.xml).
+[backup_rules.xml](../src/app/src/main/res/xml/backup_rules.xml).
 
 ## Remaining sections
 

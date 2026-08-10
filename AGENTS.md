@@ -1,21 +1,8 @@
----
-name: dev-workflow
-description: How to build, test, lint, install on the phone, read logs, and handle version control for this project. Use whenever running Gradle, running unit tests or lint, deploying/sideloading the app to a device, launching it, checking connected devices, reading logcat, verifying an NFC change on real hardware, or about to run any git command (including deleting, moving or renaming tracked files). Read this BEFORE typing any gradlew, adb or git command — gradlew and adb need wrappers that live in scripts/, and git is off-limits entirely.
----
+# AGENTS.md — NFC Spool Writer
 
-# Software Engeneering skills for NFC Spool Writer
-
-## Comments
-Do NOT create comments in code that refelect historlcal facts. Comments should reflect the current state of the code and explain why it is that way, not how it used to be. Only comment what is not obvious when reading the code. If it is not obvious from the code what it does, refactor the code to make it more self-explanatory.
-
-## Tests
-Create UnitTests to ensure a 100% line and branch coverage of all Kotlin code. Use mutation testing to ensure that the tests are effective. Use the `scripts/check.sh` script to run all tests and lint checks.
-
-Build mocks for things that are not available during unit testing, such as Android classes that require a device (such as NFC).
-
-## UI
-Strife for an easy to use UI that allows the user to complete their tasks with minimal effort. Use the Material Design guidelines to ensure a consistent look and feel across the app.
-Ensure that the app feels like a native Android app, and not a web app. Use the Compose UI framework to build the UI.
+Working agreements for any agent working in this repo. Read the version control and
+build & deploy sections **before** typing a `git`, `gradlew` or `adb` command: `gradlew` and `adb`
+need the wrappers in `scripts/`, and `git` is off-limits entirely.
 
 ## Version control
 
@@ -31,7 +18,7 @@ exactly what they want to see.
 
 State plainly in your summary which files you deleted or moved, so the user knows what to stage.
 
-# NFC Spool Writer — build & deploy workflow
+## Build & deploy
 
 **Always go through `scripts/`. Never invoke `gradlew` or `adb` directly.** The wrappers encode two
 facts about this machine and repo that a direct command gets wrong, and they are allowlisted in
@@ -46,7 +33,7 @@ executable and carry their own shebang, so no interpreter prefix is needed. Writ
 which turns every invocation into a permission prompt for the user. Do not prefix with `cd` either —
 the Bash tool already starts in the repo root, and the scripts resolve their own location regardless.
 
-## The commands
+### The commands
 
 | Task | Command |
 |---|---|
@@ -60,6 +47,14 @@ the Bash tool already starts in the repo root, and the scripts resolve their own
 
 `scripts/check.sh` runs `assembleDebug` + `testDebugUnitTest` + `lintDebug`. That is the bar for
 calling a TODO.md item done — note it includes **lint**, which the two Gradle tasks alone do not.
+
+## Tests
+
+Create unit tests to ensure 100% line and branch coverage of all Kotlin code. Use mutation testing to
+ensure that the tests are effective. Use `scripts/check.sh` to run all tests and lint checks.
+
+Build mocks for things that are not available during unit testing, such as Android classes that
+require a device (such as NFC).
 
 ## Verifying on hardware
 
@@ -76,3 +71,16 @@ touching tags therefore needs a real device:
 
 Outstanding manual checks live in `TODO.md` §2. When a check needs a tag this project
 does not have, record it as **untested** — never as assumed-passing.
+
+## Comments
+
+Do NOT write comments that record historical facts. Comments should reflect the current state of the
+code and explain why it is that way, not how it used to be. Only comment what is not obvious when
+reading the code. If it is not obvious from the code what it does, refactor the code to make it more
+self-explanatory.
+
+## UI
+
+Strive for an easy-to-use UI that lets the user complete their tasks with minimal effort. Follow the
+Material Design guidelines for a consistent look and feel across the app. Ensure the app feels like a
+native Android app, not a web app — build the UI with Compose.
