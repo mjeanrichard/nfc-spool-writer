@@ -39,16 +39,16 @@ jobs:
       contents: write
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up JDK
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
 
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v6
 
       # versionCode must be unique per upload or Play rejects the bundle. The run number is
       # monotonic per workflow and never reused, so it cannot collide with an earlier upload.
@@ -199,7 +199,7 @@ jobs:
           echo "Release BuildConfig.DEBUG is false; harness route is not registered."
 
       - name: Upload bundle and APK
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: release-${{ steps.version.outputs.label }}
           path: ${{ steps.assets.outputs.dir }}/*
@@ -208,7 +208,7 @@ jobs:
 
       - name: Upload mapping and lint report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: reports-${{ steps.version.outputs.code }}
           path: |
