@@ -84,3 +84,62 @@ item names the assumption it tests, so a surprise points at a specific fake fix.
 - [ ] Verify the *release* build on-device: new name and icon, **no harness button in Settings**, and
       a full write-and-verify against a real tag.
 - [ ] Confirm Play accepts an upload targeting API 37 with this AGP; fall back to 36 if not. — Risk 6
+
+## 4. Repository security hardening
+
+From a read-only audit of the GitHub settings on 2026-08-10. What was already in place stays out of
+this list: secret scanning with push protection, Dependabot security updates, read-only default
+workflow permissions, no webhooks or deploy keys, and no credential file ever committed. Everything
+below is an open gap. Items marked *[GitHub]* are settings changes; the rest are changes in this
+repository.
+
+### 4.2 Branch protection and supply chain
+
+- [x] **Add a ruleset on `master`.** *Done 2026-08-10* — ruleset "Protect master" on
+      `~DEFAULT_BRANCH`: blocks deletion and force-push, requires a pull request (0 approvals — a sole
+      dev cannot approve their own PR, so any higher number would be unmergeable), and requires the
+      `check` status from the github-actions app.
+      **Direct pushes to `master` are now rejected; every change goes through a PR.** The required
+      context is `check`, the job id — *not* `Check`, the workflow name, and not `check / check`,
+      which is what the reusable call inside Release reports.
+      *Escape hatch:* there are no bypass actors, so a broken `check` workflow cannot be fixed through
+      a PR that runs it. Set the ruleset's enforcement to `disabled` for as long as the fix takes.
+- [ ] **Require signed commits**, once signing is set up locally. Deliberately left out of the ruleset
+      above: every commit in the repo is currently `verified=false / unsigned`, so turning it on would
+      reject all pushes until an SSH or GPG signing key is configured and registered.
+- [ ] **Pin every Action to a full commit SHA.** *[GitHub +
+      [release.yml](.github/workflows/release.yml), [check.yml](.github/workflows/check.yml)]*
+      `checkout@v4`, `setup-java@v4`, `setup-gradle@v4` and `upload-artifact@v4` are mutable tags; a
+      compromised tag on any of them executes in the job holding the decoded keystore. Consider
+      enabling required SHA pinning repo-wide afterwards.
+- [x] **Add `.github/dependabot.yml` for the `gradle` and `github-actions` ecosystems.** *Done
+      2026-08-10* — weekly, grouped (androidx / kotlin / ktor / test, AGP deliberately alone), with a
+      7-day cooldown and 30 for majors. Renovate was considered and rejected for now: its one real
+      advantage here is updating the Gradle wrapper, which is not worth granting a third-party app
+      write access to a repository whose `master` is an allowed ref for the signing environment.
+- [ ] **Bump the Gradle wrapper by hand, periodically** (currently 9.5.0). Nothing automated watches
+      it — Dependabot matches Maven coordinates and the wrapper is a URL plus a committed jar.
+      Expect to notice it as an AGP pull request failing on a minimum-Gradle-version error.
+      From `src/`, run twice: `./gradlew wrapper --gradle-version X --gradle-distribution-sha256-sum
+      <sha>` (sum from `services.gradle.org/distributions/gradle-X-bin.zip.sha256`).
+      *Pass the checksum flag explicitly* — omitting it can drop `distributionSha256Sum` and silently
+      undo the pin. CI would not fail; the verification would simply stop happening.
+
+### 4.3 Scanning, disclosure and hygiene
+
+- [ ] **Enable CodeQL default setup** for `actions` and `java-kotlin`. *[GitHub]* Free on a public
+      repo, and the `actions` pack targets exactly the workflow-injection class this repo has
+      something worth losing to.
+- [ ] **Enable secret scanning non-provider patterns and validity checks.** *[GitHub]* Both are off;
+      non-provider patterns catch generic private keys, which is the relevant shape here.
+- [ ] **Disable the unused wiki.** *[GitHub]* Docs live in [docs/](docs/) and on Pages, leaving the
+      wiki as a public write surface nobody reads.
+- [ ] **Add `SECURITY.md`** — a public repo with no disclosure channel.
+- [ ] **Consider narrowing the three enabled merge methods to squash-only.** *[GitHub]* All of
+      squash, merge and rebase are still allowed. Cosmetic rather than a security matter — it only
+      decides what `master`'s history looks like now that every change arrives as a PR.
+      *(Delete-branch-on-merge: done 2026-08-10.)*
+- [ ] **Confirm account 2FA is on**, and that fork PR workflows still require approval (Settings →
+      Actions → General). *Neither could be read via the API* — the token lacks the scope for 2FA and
+      the fork-PR endpoint returned 404 — so these are unverified rather than known-bad. Fork PRs do
+      execute `scripts/check.sh` on a runner, which is fine while approval is required.
