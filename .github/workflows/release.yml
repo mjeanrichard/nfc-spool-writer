@@ -27,6 +27,13 @@ jobs:
     needs: check
     runs-on: ubuntu-latest
 
+    # The upload key lives in this environment's secrets, not the repository's, so only a ref the
+    # environment allows can read it: `master` and `v*` tags. That closes the hole that
+    # workflow_dispatch would otherwise leave open - dispatch takes a ref, and the workflow file from
+    # that ref is what runs, so a branch carrying an edited copy of this file could otherwise decode
+    # the keystore without a review. The environment also gates each run on a manual approval.
+    environment: release
+
     # Needed to create the GitHub release; the reusable check workflow keeps the read-only default.
     permissions:
       contents: write
