@@ -44,8 +44,11 @@ fun ReadTagScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
 
-    // Reader mode is scoped to this screen, so tags are only handled while the user is here.
-    if (viewModel.compatibility == DeviceCompatibility.Compatible && state.canScan) {
+    // Reader mode is scoped to this screen, so tags are only handled while the user is here — but it
+    // stays bound for the whole screen rather than only while idle. Unbinding between reads makes the
+    // platform re-poll, which re-activates a tag still resting on the phone and starts the read again
+    // immediately; the screen then cycles between prompt and error. Re-entrancy is the ViewModel's job.
+    if (viewModel.compatibility == DeviceCompatibility.Compatible) {
         NfcReaderEffect(onTag = viewModel::onTagDiscovered)
     }
 

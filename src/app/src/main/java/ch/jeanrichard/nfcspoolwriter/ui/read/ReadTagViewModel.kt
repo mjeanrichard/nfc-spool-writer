@@ -33,6 +33,7 @@ import kotlinx.coroutines.launch
  *
  * @param openSession injected so the logic is testable without a real `android.nfc.Tag`, which cannot
  *   be constructed in a unit test.
+ * @param now injected for the same reason — the rescan cooldown needs a clock the tests can hold still.
  */
 class ReadTagViewModel(
     private val tagReaderWriter: MifareTagReaderWriter,
@@ -40,6 +41,7 @@ class ReadTagViewModel(
     private val spoolmanRepository: SpoolmanRepository,
     val compatibility: DeviceCompatibility,
     private val openSession: (Tag) -> MifareSession?,
+    private val now: () -> Long = System::currentTimeMillis,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(ReadUiState())
@@ -48,10 +50,25 @@ class ReadTagViewModel(
     /** The in-flight Spoolman lookup, so a slow one for an earlier tag cannot land on a later one. */
     private var lookupJob: Job? = null
 
+    /** The tag whose result is on screen, and when that read finished — see [onTagDiscovered]. */
+    private var lastTagId: ByteArray? = null
+    private var lastReadAt = 0L
+
     /** Called from NFC reader mode on a binder thread. */
     fun onTagDiscovered(tag: Tag) {
         // A second concurrent session on the same tag fails confusingly, so a tap mid-read is dropped.
         if (_state.value.busy) return
+
+        // Closing the session ends the tag's RF activation, so a tag left resting on the phone is
+        // rediscovered within milliseconds and would be read over and over — each one also firing a
+        // Spoolman lookup. A brief per-tag cooldown swallows that echo while leaving a different tag,
+        // or a deliberate re-tap a moment later, instant. Failures are exempt: "try again" has to mean
+        // it, and a failed read is the one case where the user taps the same tag straight away.
+        val id = tag.id
+        if (id != null && id.contentEquals(lastTagId) && now() - lastReadAt < RESCAN_COOLDOWN_MILLIS) {
+            return
+        }
+        lastTagId = id
 
         lookupJob?.cancel()
         _state.update { it.copy(busy = true, outcome = null, lookup = null) }
@@ -113,9 +130,22 @@ class ReadTagViewModel(
         supplierId = fields.supplierId,
     )
 
-    private fun finish(outcome: ReadOutcome) =
+    private fun finish(outcome: ReadOutcome) {
+        if (outcome is ReadOutcome.Failed) {
+            // Nothing was learned about this tag, so it must not be held off by the cooldown.
+            lastTagId = null
+        } else {
+            lastReadAt = now()
+        }
         _state.update { it.copy(busy = false, outcome = outcome) }
+    }
 }
+
+/**
+ * How long a tag that has just been read is ignored for. Long enough to swallow the rediscovery that
+ * follows closing the session, short enough that a deliberate second tap feels immediate.
+ */
+private const val RESCAN_COOLDOWN_MILLIS = 2_000L
 
 data class ReadUiState(
     /** A read is in flight; further taps are ignored. */
@@ -123,14 +153,7 @@ data class ReadUiState(
     val outcome: ReadOutcome? = null,
     /** Only ever set for a [ReadOutcome.Written] tag, which is the only one carrying a spool ID. */
     val lookup: SpoolLookup? = null,
-) {
-    /**
-     * Reader mode stays bound even after a result, unlike the write screen — which unbinds so a stray
-     * tap cannot write an unrelated tag. Reading carries no such hazard, and working through a handful
-     * of unknown tags is exactly what this screen is for, so each tap simply replaces the last result.
-     */
-    val canScan: Boolean get() = !busy
-}
+)
 
 sealed interface ReadOutcome {
 

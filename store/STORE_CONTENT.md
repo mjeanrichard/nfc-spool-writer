@@ -39,27 +39,23 @@ There are no accounts, so "available without special access" is tempting and is 
 text field, and a reviewer who cannot see the app work will otherwise record it as broken. The
 restriction is real — it is hardware and network, not credentials — and the instructions say so.
 
-Instructions to paste:
+Instructions to paste (**464 of the 500 characters** the field allows):
 
-> This app has no accounts, logins, subscriptions or paywalls. No credentials are needed.
+> No accounts, logins or paywalls — no credentials needed.
 >
-> It cannot, however, demonstrate its main function on a standard review device, for two reasons:
+> The main flow cannot run on a standard review device. Writing needs an NXP NFC chipset (MIFARE
+> Classic) and physical tags; other NFC controllers detect such tags but cannot authenticate to them.
+> The spool list comes from Spoolman, a server the user self-hosts, so the app ships with no address
+> and runs no backend.
 >
-> 1. HARDWARE. Writing tags requires a phone with an NXP NFC chipset (MIFARE Classic support) and
->    physical MIFARE Classic tags. Phones with Broadcom or Qualcomm NFC controllers can detect such a
->    tag but cannot authenticate to it — this is a hardware limitation with no software workaround.
->    The app declares `<uses-feature android:name="com.nxp.mifare" android:required="true" />`, which
->    is why its supported-device count is unusually low. That is deliberate.
->
-> 2. NETWORK. The filament list is read from Spoolman, an open-source inventory server
->    (https://github.com/Donkie/Spoolman) that the user runs on their own network. The app ships with
->    no server address and has no developer-operated backend; the user types their own address in
->    Settings.
->
-> Without both, the app opens with an empty list and an explanatory message pointing to Settings.
-> That is the designed behaviour for an unconfigured install, not a crash.
->
-> A demo video showing a complete write against a real tag and a real Spoolman server: [URL]
+> Unconfigured it shows an empty list pointing to Settings: designed behaviour, not a crash.
+
+The field is capped at 500 characters, which is the constraint that shapes this text — an earlier
+draft ran to 1190. What survived, in priority order: *no credentials* (answers the literal question),
+*why it cannot be demonstrated* (stops "broken" being the verdict), and *the empty list is
+intentional* (names the exact thing a reviewer will see). Dropped to fit: the `uses-feature`
+declaration, the Spoolman URL, and the explanation of the low device count — all recoverable from the
+store listing if a reviewer wants them.
 
 ## Ads
 

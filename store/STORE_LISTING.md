@@ -38,6 +38,10 @@ A genuine spool carries two tags holding the same data, so the printer can read 
 
 If a tag already has data on it, the app tells you what it contains and asks before overwriting.
 
+CHECKING A TAG
+
+You can also hold any tag against the phone just to see what is on it: the material, colour, weight and the spool it names, matched back against your Spoolman inventory when that spool still exists. Checking never writes, so a tag you inspect comes away exactly as it was.
+
 WHAT YOU NEED
 
 Please check all four before installing. Without them the app cannot do anything useful:
@@ -77,9 +81,10 @@ Open source: github.com/mjeanrichard/nfc-spool-writer
   but it cannot filter for "owns MIFARE Classic tags" or "runs Spoolman".
 - **The unusually small device count is explained rather than hidden**, so it reads as deliberate
   engineering rather than a broken listing.
-- **Read-and-check mode is not mentioned.** It is still in development (`ui/read/`) and does not
-  compile yet. Add a line to HOW IT WORKS if it ships in the first release; do not advertise it
-  before then.
+- **Checking a tag leads with "never writes".** That is the reassurance a user needs before pointing
+  an unknown tag at the app, and it doubles as a policy signal: the read path authenticates to
+  inspect and nothing more. Verified on hardware after the reader-mode fix; `4-read.png` is the
+  matching screenshot.
 - **The privacy paragraph doubles as review evidence.** It matches
   [STORE_CONTENT.md](STORE_CONTENT.md) and [docs/privacy-policy.md](docs/privacy-policy.md)
   exactly; a reviewer cross-checking the three should find no daylight between them.

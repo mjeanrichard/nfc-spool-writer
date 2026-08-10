@@ -17,6 +17,7 @@ import ch.jeanrichard.nfcspoolwriter.testsupport.fakeSpoolmanRepository
 import ch.jeanrichard.nfcspoolwriter.testsupport.hexToBytes
 import ch.jeanrichard.nfcspoolwriter.testsupport.realMaterialCatalog
 import ch.jeanrichard.nfcspoolwriter.testsupport.testSpool
+import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -54,6 +55,7 @@ class ReadTagViewModelTest {
         compatibility: DeviceCompatibility = DeviceCompatibility.Compatible,
         ioDispatcher: CoroutineDispatcher = testDispatcher,
         onOpenSession: () -> Unit = {},
+        now: () -> Long = { 0L },
     ) = ReadTagViewModel(
         tagReaderWriter = MifareTagReaderWriter(
             ioDispatcher = ioDispatcher,
@@ -66,7 +68,13 @@ class ReadTagViewModelTest {
             onOpenSession()
             session
         },
+        now = now,
     )
+
+    /** Distinct tags need distinct ids; a relaxed mock reports the same empty one for every tag. */
+    private fun tagWithId(hex: String): Tag = mockk(relaxed = true) {
+        every { id } returns hexToBytes(hex)
+    }
 
     private fun fields(
         materialId: String = "00001",
@@ -255,14 +263,17 @@ class ReadTagViewModelTest {
 
     // --- Scanning lifecycle ------------------------------------------------------------------
 
-    /** Unlike the write screen, a result is not terminal — working through unknown tags is the job. */
+    /**
+     * Unlike the write screen, a result is not terminal — working through unknown tags is the job.
+     * The screen keeps reader mode bound throughout, so "armed" is simply "not busy"; that the next
+     * tag is actually accepted is covered by `a different tag is read straight away`.
+     */
     @Test
-    fun `scanning stays armed after a result`() = runTest {
+    fun `the reader goes idle again after a result`() = runTest {
         val vm = viewModel(FakeMifareSession.blank(uid))
 
         vm.onTagDiscovered(tag)
 
-        assertTrue(vm.state.value.canScan)
         assertEquals(false, vm.state.value.busy)
     }
 
@@ -282,6 +293,75 @@ class ReadTagViewModelTest {
 
         assertEquals(1, opened)
         assertEquals(ReadOutcome.Blank, vm.state.value.outcome)
+    }
+
+    // --- Rescan cooldown ---------------------------------------------------------------------
+    //
+    // Reader mode stays bound for the whole screen, so a tag left resting on the phone is
+    // rediscovered as soon as the session closes. Without a cooldown that reads in a loop.
+
+    @Test
+    fun `a tag left on the reader is read once, not repeatedly`() = runTest {
+        var opened = 0
+        val vm = viewModel(FakeMifareSession.blank(uid), onOpenSession = { opened++ })
+        val same = tagWithId("11223344")
+
+        repeat(3) {
+            vm.onTagDiscovered(same)
+            advanceUntilIdle()
+        }
+
+        assertEquals(1, opened)
+        assertEquals(ReadOutcome.Blank, vm.state.value.outcome)
+    }
+
+    @Test
+    fun `a different tag is read straight away`() = runTest {
+        var opened = 0
+        val vm = viewModel(FakeMifareSession.blank(uid), onOpenSession = { opened++ })
+
+        vm.onTagDiscovered(tagWithId("11223344"))
+        advanceUntilIdle()
+        vm.onTagDiscovered(tagWithId("AABBCCDD"))
+        advanceUntilIdle()
+
+        assertEquals(2, opened)
+    }
+
+    @Test
+    fun `the same tag reads again once the cooldown has passed`() = runTest {
+        var opened = 0
+        var clock = 0L
+        val vm = viewModel(
+            FakeMifareSession.blank(uid),
+            onOpenSession = { opened++ },
+            now = { clock },
+        )
+        val same = tagWithId("11223344")
+
+        vm.onTagDiscovered(same)
+        advanceUntilIdle()
+        clock = 2_000
+        vm.onTagDiscovered(same)
+        advanceUntilIdle()
+
+        assertEquals(2, opened)
+    }
+
+    @Test
+    fun `a failed read can be retried with the same tag immediately`() = runTest {
+        var opened = 0
+        // A null session is the "not a MIFARE Classic tag" path, which finishes as Failed.
+        val vm = viewModel(session = null, onOpenSession = { opened++ })
+        val same = tagWithId("11223344")
+
+        vm.onTagDiscovered(same)
+        advanceUntilIdle()
+        vm.onTagDiscovered(same)
+        advanceUntilIdle()
+
+        assertEquals(2, opened)
+        assertTrue(vm.state.value.outcome is ReadOutcome.Failed)
     }
 
     @Test
