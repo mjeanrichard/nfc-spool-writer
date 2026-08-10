@@ -1,0 +1,75 @@
+# Routine version updates. Security updates are a separate, always-on mechanism and are not
+# configured here - nothing below can delay or suppress them.
+#
+# Not covered: the Gradle wrapper (`src/gradle/wrapper/`). Dependabot looks for Maven coordinates,
+# and the wrapper is a URL plus a committed jar, so it is invisible to every ecosystem below and
+# stays a manual bump. Expect that to surface as an AGP pull request failing on a
+# "minimum supported Gradle version" error, which no Dependabot PR can fix by itself:
+#
+#   cd src
+#   ./gradlew wrapper --gradle-version X --gradle-distribution-sha256-sum <sha>   # run twice
+#
+# Pass the checksum flag explicitly - without it `distributionSha256Sum` can be dropped, silently
+# undoing the pin that makes the distribution download verifiable.
+version: 2
+
+updates:
+  # Gradle root is `src/`, not the repository root. Every version lives in
+  # `src/gradle/libs.versions.toml` - no build script declares a literal coordinate - so pointing at
+  # `/src` reaches the catalog and with it the whole dependency set, `src/app` included.
+  - package-ecosystem: gradle
+    directory: /src
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Zurich
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: build
+    # Being the first to install a compromised release is a real supply-chain risk and waiting costs
+    # nothing on a weekly cadence. Majors wait longer because they are the ones worth reading about
+    # before adopting. Cooldown applies to these version updates only - a security update is never
+    # held back.
+    cooldown:
+      default-days: 7
+      semver-major-days: 30
+    groups:
+      # AndroidX and Compose move as a fleet, and a BOM bump drags its artifacts with it. One PR per
+      # week beats fifteen.
+      androidx:
+        patterns:
+          - androidx*
+      kotlin:
+        patterns:
+          - org.jetbrains.kotlin*
+          - org.jetbrains.kotlinx*
+      ktor:
+        patterns:
+          - io.ktor*
+      test-libraries:
+        patterns:
+          - junit*
+          - io.mockk*
+    # AGP is deliberately left ungrouped. It is the one dependency whose bump can require a Gradle
+    # wrapper change, so it should arrive alone and fail on its own rather than turning a grouped PR
+    # red for a reason unrelated to the other members.
+
+  # Workflows live at the repository root, so this stays `/` regardless of where the Gradle build
+  # sits. This is the half that matters most once the actions in `release.yml` are pinned to commit
+  # SHAs: a pin no one advances is a pin that rots, and this is what advances it.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Zurich
+    commit-message:
+      prefix: ci
+    cooldown:
+      default-days: 7
+    groups:
+      actions:
+        patterns:
+          - "*"
