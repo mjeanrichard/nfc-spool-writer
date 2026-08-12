@@ -8,10 +8,9 @@ import kotlinx.coroutines.withContext
 import java.io.IOException
 
 /**
- * Produces a raw, human-readable dump of a tag for the manual hardware checklist
- * (`TODO.md` §2).
+ * Produces a raw, human-readable dump of a tag for the manual hardware checks.
  *
- * Exists because several checklist items can only be answered by looking at bytes the normal read
+ * Exists because several of those checks can only be answered by looking at bytes the normal read
  * path deliberately hides — in particular the sector-1 trailer's access bits, which this format must
  * preserve and which a bug could silently clobber, and the raw reserve field, whose acceptance by
  * real hardware is recorded in DESIGN.md DEC-01, "serial number and reserve fields".

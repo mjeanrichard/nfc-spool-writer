@@ -87,7 +87,7 @@ jobs:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: |
           if [ -z "$KEYSTORE_BASE64" ]; then
-            echo "::error::ANDROID_KEYSTORE_BASE64 is not set. See STORE_PLAN.md Phase 1."
+            echo "::error::ANDROID_KEYSTORE_BASE64 is not set."
             exit 1
           fi
           mkdir -p "$RUNNER_TEMP/signing"

@@ -28,9 +28,9 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ch.jeanrichard.nfcspoolwriter.R
 import ch.jeanrichard.nfcspoolwriter.data.nfc.DeviceCompatibility
-import ch.jeanrichard.nfcspoolwriter.domain.model.Spool
 import ch.jeanrichard.nfcspoolwriter.ui.confirm.FieldRow
 import ch.jeanrichard.nfcspoolwriter.ui.nfc.NfcReaderEffect
+import ch.jeanrichard.nfcspoolwriter.ui.spoollist.SpoolSummary
 
 /**
  * Reports what is on a tag the user presents, and nothing else — no write, no key installation
@@ -218,18 +218,9 @@ private fun SpoolmanCard(lookup: SpoolLookup) {
                     style = MaterialTheme.typography.bodyMedium,
                 )
 
-                is SpoolLookup.Found -> {
-                    Text(
-                        text = spoolLabel(lookup.spool),
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                    lookup.spool.location?.let { location ->
-                        Text(
-                            text = stringResource(R.string.read_spoolman_location, location),
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                    }
-                }
+                // The same presentation as the spool select list, so the spool the tag points at can
+                // be matched against the one the user picked there without re-reading it.
+                is SpoolLookup.Found -> SpoolSummary(spool = lookup.spool)
 
                 is SpoolLookup.Unavailable -> Text(
                     text = lookup.text,
@@ -238,14 +229,6 @@ private fun SpoolmanCard(lookup: SpoolLookup) {
             }
         }
     }
-}
-
-@Composable
-private fun spoolLabel(spool: Spool): String {
-    val name = spool.filament.name
-        ?: spool.filament.material
-        ?: stringResource(R.string.spools_unnamed)
-    return spool.filament.vendor?.name?.let { "$name ($it)" } ?: name
 }
 
 private const val OPAQUE = 0xFF000000.toInt()

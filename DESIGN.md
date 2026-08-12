@@ -4,8 +4,6 @@ Companion to [REQUIREMENTS.md](REQUIREMENTS.md), which this document assumes as 
 say *what* the app must do, this says *how* it is built and *why* the non-obvious choices were made.
 Tech-stack choices below (Kotlin, Compose, sideload-first distribution) are also reflected there.
 
-Outstanding work is not tracked here — see [TODO.md](TODO.md).
-
 The `DEC-nn` identifiers in §2 follow the scheme defined in [REQUIREMENTS.md §1.1](REQUIREMENTS.md);
 they are stable and travel with the decision, so they stay valid even though the text moved here.
 
@@ -118,7 +116,7 @@ WriteScreen
 - No Espresso/instrumented UI tests — per explicit instruction, UI tests are not needed. Compose
   screens stay thin (state in, events out) precisely so nothing important is *only* verifiable
   through the UI layer; the NFC-hardware path also can't be meaningfully automated regardless, so
-  both get the manual checks in [TODO.md](TODO.md) instead.
+  both get manual checks on a device instead.
 
 ## 2. Decisions
 

@@ -111,9 +111,9 @@ fun SettingsScreen(
             style = MaterialTheme.typography.bodySmall,
         )
 
-        // The harness is still the only way to run the outstanding printer-validation checks in
-        // TODO.md §2, so it stays reachable in debug builds rather than being
-        // deleted. It shows raw hex and trailer bits, so it must not ship to store users.
+        // The harness is still the only way to run the outstanding printer-validation checks, so it
+        // stays reachable in debug builds rather than being deleted. It shows raw hex and trailer
+        // bits, so it must not ship to store users.
         if (onOpenHarness != null) {
             OutlinedButton(onClick = onOpenHarness) {
                 Text(stringResource(R.string.settings_open_harness))

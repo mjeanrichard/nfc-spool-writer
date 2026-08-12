@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -147,38 +146,12 @@ fun SpoolListScreen(
 
 @Composable
 private fun SpoolRow(spool: Spool, onClick: () -> Unit) {
-    Row(
+    SpoolSummary(
+        spool = spool,
         modifier = Modifier
-            .fillMaxWidth()
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 12.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        SpoolSwatch(filament = spool.filament)
-        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(
-                text = spool.filament.name
-                    ?: spool.filament.material
-                    ?: stringResource(R.string.spools_unnamed),
-                style = MaterialTheme.typography.titleMedium,
-            )
-            Text(
-                text = listOfNotNull(
-                    spool.filament.vendor?.name,
-                    // The swatch already carries the material, so repeating it here would only be
-                    // noise — unless it was too long to fit and got cut short.
-                    spool.filament.material.takeIf { swatchLabel(it).truncated },
-                    spool.filament.fullSpoolWeightGrams?.let { "${it.toInt()} g" },
-                    spool.location,
-                ).joinToString(" · "),
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            Text(
-                text = stringResource(R.string.spools_id, spool.id),
-                style = MaterialTheme.typography.bodySmall,
-            )
-        }
-    }
+    )
 }
 
 @Composable

@@ -20,12 +20,12 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
- * Development harness for running `TODO.md` §2 before the real write flow exists.
+ * Development harness for running the manual hardware checks.
  *
  * **Development tool, not part of the product flow.** The real write path is the browse → select →
  * confirm → write screens; this exists because validating the *format* means controlling every byte and
  * seeing raw tag contents, which the real flow deliberately does not allow. Reachable from Settings so
- * the outstanding checks in `TODO.md` §2 can still be run.
+ * the outstanding hardware checks can still be run.
  */
 class TagHarnessViewModel(
     private val readerWriter: MifareTagReaderWriter,

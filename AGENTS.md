@@ -50,7 +50,7 @@ the Bash tool already starts in the repo root, and the scripts resolve their own
 | Anything else adb | `scripts/adb.sh <args>` |
 
 `scripts/check.sh` runs `assembleDebug` + `testDebugUnitTest` + `lintDebug`. That is the bar for
-calling a TODO.md item done — note it includes **lint**, which the two Gradle tasks alone do not.
+calling a change done — note it includes **lint**, which the two Gradle tasks alone do not.
 
 ## Tests
 
@@ -73,8 +73,8 @@ touching tags therefore needs a real device:
    the only way to capture a full diagnostic dump, since the on-screen copy is wider than the screen.
 4. `scripts/adb.sh logcat -d -b crash` for a crash.
 
-Outstanding manual checks live in `TODO.md` §2. When a check needs a tag this project
-does not have, record it as **untested** — never as assumed-passing.
+When a check needs a tag this project does not have, record it as **untested** — never as
+assumed-passing.
 
 ## Comments
 

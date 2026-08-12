@@ -3,7 +3,7 @@
       Deliberately free of third-party product names. "K2 Plus" is Creality's and "Spoolman" is a
       separate open-source project; naming either in the app title implies an affiliation that does
       not exist, which Play's Impersonation policy rejects. Compatibility is stated in the store
-      description and in settings_about instead. See STORE_PLAN.md §2a.
+      description and in settings_about instead.
     -->
     <string name="app_name">NFC Spool Writer</string>
 
@@ -90,7 +90,6 @@
     <string name="read_material_unknown">Not in the material list (%1$s)</string>
     <string name="read_spoolman_title">In Spoolman</string>
     <string name="read_spoolman_loading">Looking this spool up…</string>
-    <string name="read_spoolman_location">Location: %1$s</string>
 
     <!-- Write -->
     <string name="write_tap">Hold the phone against the tag.</string>
