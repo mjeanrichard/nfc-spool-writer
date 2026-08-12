@@ -39,4 +39,7 @@ fi
 
 "$adb" install -r "$apk"
 
-"$adb" shell am start -n ch.jeanrichard.nfcspoolwriter/.MainActivity
+# The debug variant carries the ".debug" applicationIdSuffix so it installs next to a store build,
+# but the activity class still lives in the unsuffixed namespace — hence the fully qualified name
+# rather than the "/.MainActivity" shorthand, which adb would resolve against the package id.
+"$adb" shell am start -n ch.jeanrichard.nfcspoolwriter.debug/ch.jeanrichard.nfcspoolwriter.MainActivity

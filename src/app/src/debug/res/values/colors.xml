@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      Debug-only override of the launcher icon ground. Since the debug variant installs alongside a
+      release build (applicationIdSuffix ".debug"), the two icons sit next to each other in the
+      launcher and must not be confusable at 48dp; plum against the release navy is the fastest
+      possible read, and recolouring only the background layer keeps the spool artwork identical so
+      the dev build still looks like the same app.
+
+      Held to the same contrast bar as the release ground (values/colors.xml): amber filament
+      4.9:1 against it (release: 4.4:1), cyan signal 5.8:1, and 2.0:1 against a black app drawer
+      so the icon keeps a silhouette (release: 1.95:1).
+    -->
+    <color name="icon_background">#FF6B2352</color>
+</resources>

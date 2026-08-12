@@ -88,6 +88,15 @@ android {
     }
 
     buildTypes {
+        debug {
+            // Distinct applicationId so a debug build installs alongside the Play release instead of
+            // replacing it — the two are signed with different keys, so without this every install
+            // requires uninstalling the other one first. The namespace (and therefore the activity
+            // class names) is unchanged, only the package identity on the device.
+            applicationIdSuffix = ".debug"
+            versionNameSuffix = "-debug"
+        }
+
         release {
             // Null when no credentials were found, which leaves the bundle unsigned rather than
             // silently debug-signed. Configuration stays permissive so a debug-only machine can

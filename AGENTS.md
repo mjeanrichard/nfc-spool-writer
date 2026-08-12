@@ -18,6 +18,10 @@ exactly what they want to see.
 
 State plainly in your summary which files you deleted or moved, so the user knows what to stage.
 
+When the user does explicitly ask for a commit, **the message is a single line** — a subject and
+nothing else. No body paragraphs, no bullet list of what changed, however interesting the rationale
+is. Rationale belongs in a code comment or the PR body.
+
 ## Build & deploy
 
 **Always go through `scripts/`. Never invoke `gradlew` or `adb` directly.** The wrappers encode two
