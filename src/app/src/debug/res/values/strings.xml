@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Overrides the launcher label for debug builds only. With applicationIdSuffix ".debug" both the
+  store build and the development build can be installed at once, and identical icons in the
+  launcher would otherwise be indistinguishable.
+-->
+<resources>
+    <string name="app_name">NFC Spool (dev)</string>
+</resources>
