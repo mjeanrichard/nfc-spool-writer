@@ -31,8 +31,8 @@ import ch.jeanrichard.nfcspoolwriter.domain.model.WeightBucket
 import ch.jeanrichard.nfcspoolwriter.ui.nfc.NfcReaderEffect
 
 /**
- * Temporary development screen for running `TODO.md` §2. Replaced by the real
- * multi-step flow in Phase 5 — see [TagHarnessViewModel] for why it exists.
+ * Temporary development screen for running the manual hardware checks — see [TagHarnessViewModel]
+ * for why it exists.
  */
 @Composable
 fun TagHarnessScreen(

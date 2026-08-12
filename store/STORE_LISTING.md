@@ -5,8 +5,8 @@ British spelling throughout, matching the app's own strings (`Colour`, `recognis
 **English (United Kingdom)** default language set at app creation.
 
 Policy note: nothing here uses *bypass, crack, clone, unlock, hack* or *spoof*. The app is described
-as writing filament data for spools the user already owns, which is the defensible framing for
-Risk 1 (Device and Network Abuse / Intellectual Property) in [STORE_PLAN.md](STORE_PLAN.md).
+as writing filament data for spools the user already owns, which is the defensible framing against
+the Device and Network Abuse / Intellectual Property policies.
 
 ---
 

@@ -25,7 +25,7 @@ between documents. Section numbers, by contrast, are positional — cite the ID 
 requirement from code comments, commits or other documents.
 
 Companion documents: [DESIGN.md](DESIGN.md) (architecture and settled decisions),
-[TODO.md](TODO.md) (all open work), [TAG_FORMAT_SPEC.md](TAG_FORMAT_SPEC.md) (tag payload format).
+[TAG_FORMAT_SPEC.md](TAG_FORMAT_SPEC.md) (tag payload format).
 
 ## 2. Background / Prior Art
 
@@ -164,7 +164,7 @@ devices. The meaningful signal is the **`com.nxp.mifare`** system feature.
   that moment could be a write flow armed for a different spool.
 - `UI-04` — **Raw tag tooling:** a development harness for reading and diagnosing raw tag contents exists. It is
   not a v1 user-facing requirement, but is retained because it is the only way to run the outstanding
-  hardware validation in [TODO.md](TODO.md) §2. The user-facing read
+  manual hardware validation. The user-facing read
   & check mode above does not replace it: the harness shows trailer/access bits and raw hex that the
   read mode deliberately hides.
 
@@ -201,7 +201,6 @@ devices. The meaningful signal is the **`com.nxp.mifare`** system feature.
   failure into a replaceable credential. The APK attached to a GitHub release is signed with the
   upload key, not the app signing key, so a sideloaded install cannot be upgraded in place by the
   Play build.
-  Rationale, risks and the Console paperwork live in [store/STORE_PLAN.md](store/STORE_PLAN.md).
 - `NFR-07` — **Language/tooling:** Kotlin, Jetpack Compose (see [DESIGN.md](DESIGN.md) for
   architecture).
 - `NFR-08` — **Required hardware:** declare `<uses-feature android:name="android.hardware.nfc" android:required="true">`
@@ -254,8 +253,7 @@ The guiding rule is *unit test everything where it's possible to, skip UI tests 
 - `NFR-19` — **Compose UI** — explicitly not automated-tested. Screens are kept thin (render
   ViewModel state, forward events) so there's nothing UI-only worth testing; verified manually instead.
 - `NFR-20` — **`MifareClassicSession` adapter and full hardware round-trips** — can't be unit
-  tested by definition (real NFC hardware + a real tag), covered by the manual checks in
-  [TODO.md](TODO.md) §2.
+  tested by definition (real NFC hardware + a real tag), covered by manual checks on a device.
 
 ### 7.5 Maintainability
 - `NFR-21` — Minimal dependency surface, no premature abstraction —

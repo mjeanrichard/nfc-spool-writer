@@ -70,7 +70,7 @@ There is no warranty of any kind — see sections 15 and 16 of the [LICENSE](LIC
 
 ## Installing
 
-Not yet published — the first release is still in progress ([TODO.md](TODO.md) §3). When it lands:
+Not yet published — the first release is still in progress. When it lands:
 
 - **Google Play** will be the normal route, and its device filter hides phones that cannot run the app.
 - **A sideloadable APK** is attached to each [GitHub release](https://github.com/mjeanrichard/nfc-spool-writer/releases)
@@ -110,7 +110,6 @@ The design intent is written down rather than inferred from the code:
 | [REQUIREMENTS.md](REQUIREMENTS.md) | Every functional and non-functional requirement, with stable `HW-`/`REQ-`/`UI-`/`NFR-` identifiers |
 | [DESIGN.md](DESIGN.md) | Architecture and settled decisions |
 | [TAG_FORMAT_SPEC.md](TAG_FORMAT_SPEC.md) | The tag payload format, key derivation and encryption, with test vectors |
-| [TODO.md](TODO.md) | All open work, including the manual hardware validation matrix |
 | [AGENTS.md](AGENTS.md) | Working agreements for coding agents in this repo |
 | [SECURITY.md](SECURITY.md) | How to report a vulnerability, and what is deliberately out of scope |
 

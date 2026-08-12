@@ -9,8 +9,8 @@ import java.io.IOException
  *
  * Deliberately thin — it forwards calls and nothing else. Every decision worth testing lives in
  * [MifareTagReaderWriter]; this class is the one piece Phase 2 cannot cover with unit tests, so the
- * less it does, the smaller the untested surface. Its behaviour is checked by the manual hardware
- * checklist in `TODO.md` §2.
+ * less it does, the smaller the untested surface. Its behaviour is checked manually on real
+ * hardware.
  */
 class MifareClassicSession private constructor(
     private val tech: MifareClassic,
