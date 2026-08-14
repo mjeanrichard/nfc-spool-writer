@@ -63,7 +63,7 @@ fun TagHarnessScreen(
 
         item { ActionChips(state.action, viewModel::onActionChange) }
 
-        if (state.action == HarnessAction.Write || state.action == HarnessAction.WriteOverwrite) {
+        if (state.action.writesToTag) {
             item { FormFields(state.form, viewModel::onFormChange) }
         }
 
@@ -145,14 +145,28 @@ private fun ActionChips(selected: HarnessAction, onSelect: (HarnessAction) -> Un
                 )
             }
         }
-        if (selected == HarnessAction.WriteOverwrite) {
-            Text(
-                text = "Will replace existing tag content without asking.",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.error,
+        when (selected) {
+            HarnessAction.WriteOverwrite -> ActionWarning(
+                "Will replace existing tag content without asking."
             )
+
+            HarnessAction.WriteSpoolIdOnly -> ActionWarning(
+                "Will keep existing tag content byte for byte and change only the serial-number " +
+                    "field, without asking. Fails on a tag whose content does not decode."
+            )
+
+            else -> Unit
         }
     }
+}
+
+@Composable
+private fun ActionWarning(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.error,
+    )
 }
 
 @Composable

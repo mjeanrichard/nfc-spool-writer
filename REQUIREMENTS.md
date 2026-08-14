@@ -132,6 +132,14 @@ devices. The meaningful signal is the **`com.nxp.mifare`** system feature.
   **prompts for confirmation** before overwriting. Tags are not write-once, but accidental overwrites
   must be prevented. Confirming requires a fresh tap, since the tag connection cannot be held open
   across a dialog.
+- `REQ-16` — **Changing only the spool ID.** The overwrite prompt offers a second way to say yes:
+  leave the tag exactly as it is and change **only** the Spoolman spool ID. A tag written by Creality
+  carries a real batch number, date code and reserve bytes that describe the physical spool and cannot
+  be recreated once replaced, so re-pointing such a tag at a different Spoolman spool must not cost the
+  user that data. Every byte outside the serial-number field is preserved, including the reserve — the
+  duplicate ID it holds under `DEC-01` is this project's own convention, not the format's, and refreshing
+  it would defeat the purpose. The option is offered only when the tag's existing content parses: there
+  is nothing worth keeping around a tag that does not, and the app says so rather than half-repairing it.
 - `REQ-14` — **Write failures** (e.g. tag moved away mid-write): auto-retry a few times, then
   surface a clear message with guidance rather than aborting on the first failure. If retries are
   exhausted, warn that the tag may be left partially written and should be rewritten in full before use.

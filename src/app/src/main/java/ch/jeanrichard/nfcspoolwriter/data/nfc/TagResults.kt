@@ -32,6 +32,43 @@ sealed interface TagFailure {
     data class VerifyMismatch(val detail: String) : TagFailure {
         override val retryable: Boolean get() = true
     }
+
+    /**
+     * [OverwriteMode.SpoolIdOnly] was asked for but the tag's existing content could not be read
+     * back well enough to preserve it. Not retryable in the sense the other failures are: another tap
+     * would read the same unusable bytes. The way out is [OverwriteMode.Replace], which needs no
+     * existing content.
+     */
+    data class ExistingContentUnreadable(val detail: String) : TagFailure {
+        override val retryable: Boolean get() = false
+    }
+}
+
+/**
+ * What [MifareTagReaderWriter.write] may do to a tag that already holds data (REQUIREMENTS.md
+ * `REQ-13`, `REQ-16`). A blank tag is written in full whichever mode is passed — there is nothing to
+ * protect and nothing to preserve.
+ */
+enum class OverwriteMode {
+
+    /**
+     * Refuse an already-written tag and report [TagWriteResult.OverwriteRequired] instead, having
+     * written nothing. The default: overwriting is always a decision the user makes explicitly.
+     */
+    Ask,
+
+    /** Replace the whole payload with the new spool's data. */
+    Replace,
+
+    /**
+     * Keep every existing byte and change only the serial-number field to the new spool's ID.
+     *
+     * For a tag whose content came from Creality rather than from this app: its batch number, date
+     * code and reserve bytes describe the physical spool and are not reproducible once overwritten,
+     * so re-pointing the tag at a different Spoolman spool should not cost them. See
+     * [ch.jeanrichard.nfcspoolwriter.domain.tagcodec.TagCodec.withSpoolId] for what "only" covers.
+     */
+    SpoolIdOnly,
 }
 
 sealed interface TagReadResult {
@@ -57,10 +94,13 @@ sealed interface TagWriteResult {
     data object Success : TagWriteResult
 
     /**
-     * The tag already holds data and [MifareTagReaderWriter.write] was not permitted to overwrite.
-     * Nothing has been written. After the user confirms, call `write` again with
-     * `allowOverwrite = true` — which needs a fresh tap, since the tag connection cannot be held
-     * open across a confirmation dialog.
+     * The tag already holds data and [MifareTagReaderWriter.write] was called with
+     * [OverwriteMode.Ask]. Nothing has been written. After the user confirms, call `write` again with
+     * the mode they chose — which needs a fresh tap, since the tag connection cannot be held open
+     * across a confirmation dialog.
+     *
+     * [existing] is what the tag holds now, so the caller can both show it and decide which modes to
+     * offer: [OverwriteMode.SpoolIdOnly] is only meaningful when this is a [TagReadResult.Written].
      */
     data class OverwriteRequired(val existing: TagReadResult) : TagWriteResult
 

@@ -6,6 +6,8 @@ import androidx.lifecycle.viewModelScope
 import ch.jeanrichard.nfcspoolwriter.data.nfc.DeviceCompatibility
 import ch.jeanrichard.nfcspoolwriter.data.nfc.MifareSession
 import ch.jeanrichard.nfcspoolwriter.data.nfc.MifareTagReaderWriter
+import ch.jeanrichard.nfcspoolwriter.data.nfc.OverwriteMode
+import ch.jeanrichard.nfcspoolwriter.data.nfc.TagFailure
 import ch.jeanrichard.nfcspoolwriter.data.nfc.TagReadResult
 import ch.jeanrichard.nfcspoolwriter.data.nfc.TagWriteResult
 import ch.jeanrichard.nfcspoolwriter.data.nfc.toHexDump
@@ -49,8 +51,19 @@ class WriteViewModel(
     private val _state = MutableStateFlow(WriteUiState())
     val state: StateFlow<WriteUiState> = _state.asStateFlow()
 
-    /** UIDs the user has explicitly approved overwriting. Cleared once written. */
-    private val approvedOverwrites = mutableSetOf<String>()
+    /**
+     * How the user approved overwriting each tag, by UID.
+     *
+     * Keyed by UID rather than held as a single pending decision because approval is about *this*
+     * tag: after confirming, the next tap could be a different tag, which has to be asked about on
+     * its own terms.
+     *
+     * An entry outlives the tap it was made for **on purpose** — a confirmed tag that is then never
+     * presented keeps its approval for as long as the screen lives, so a user who confirms, gets
+     * distracted, and comes back is not asked twice about the same tag. Entries are dropped when the
+     * write lands, and when it fails in a way that invalidates the choice itself.
+     */
+    private val approvedOverwrites = mutableMapOf<String, OverwriteMode>()
 
     init {
         load()
@@ -109,41 +122,73 @@ class WriteViewModel(
                 return@launch
             }
 
-            val allowOverwrite = uid in approvedOverwrites
-            when (val result = tagReaderWriter.write(session, fields, allowOverwrite)) {
+            val overwrite = approvedOverwrites[uid] ?: OverwriteMode.Ask
+            when (val result = tagReaderWriter.write(session, fields, overwrite)) {
                 TagWriteResult.Success -> {
                     approvedOverwrites -= uid
                     _state.update { it.copy(writtenTags = it.writtenTags + uid) }
-                    finish(WriteMessage.Written(uid))
+                    finish(
+                        WriteMessage.Written(
+                            uid = uid,
+                            spoolIdOnly = overwrite == OverwriteMode.SpoolIdOnly,
+                        )
+                    )
                 }
 
                 is TagWriteResult.OverwriteRequired -> _state.update {
                     it.copy(
                         busy = false,
-                        overwritePrompt = OverwritePrompt(uid, describe(result.existing)),
+                        overwritePrompt = OverwritePrompt(
+                            uid = uid,
+                            existingSummary = describe(result.existing),
+                            existingSpoolId = (result.existing as? TagReadResult.Written)
+                                ?.payload?.fields?.spoolmanSpoolId,
+                            newSpoolId = fields.spoolmanSpoolId,
+                        ),
                     )
                 }
 
-                is TagWriteResult.Failed -> finish(
-                    WriteMessage.Failed(
-                        text = result.failure.userMessage(),
-                        retryable = result.failure.retryable,
-                        partiallyWritten = result.partiallyWritten,
+                is TagWriteResult.Failed -> {
+                    // An ID-only approval was a decision to keep content that has turned out not to
+                    // be readable, so it cannot stand: dropping it puts the next tap back at the
+                    // prompt, which is where the failure message sends the user. Other failures keep
+                    // their approval, since for those tapping again *is* the recovery.
+                    if (result.failure is TagFailure.ExistingContentUnreadable) {
+                        approvedOverwrites -= uid
+                    }
+                    finish(
+                        WriteMessage.Failed(
+                            text = result.failure.userMessage(),
+                            retryable = result.failure.retryable,
+                            partiallyWritten = result.partiallyWritten,
+                        )
                     )
-                )
+                }
             }
         }
     }
 
-    fun confirmOverwrite() {
+    /**
+     * Approves overwriting the prompted tag in [mode], which takes effect on the next tap of it.
+     *
+     * @param mode never [OverwriteMode.Ask] — the prompt's outcomes are the two ways of saying yes,
+     *   and saying no is [cancelOverwrite].
+     */
+    fun confirmOverwrite(mode: OverwriteMode) {
         val prompt = _state.value.overwritePrompt ?: return
-        approvedOverwrites += prompt.uid
+        approvedOverwrites[prompt.uid] = mode
         _state.update {
             it.copy(
                 overwritePrompt = null,
                 // The tag connection can't be held open across a dialog, so overwriting needs a
                 // fresh tap. Say so explicitly rather than leaving the user waiting.
-                message = WriteMessage.Info("Tap the same tag again to overwrite it."),
+                message = WriteMessage.Info(
+                    if (mode == OverwriteMode.SpoolIdOnly) {
+                        "Tap the same tag again to change its spool ID."
+                    } else {
+                        "Tap the same tag again to overwrite it."
+                    }
+                ),
             )
         }
     }
@@ -200,10 +245,25 @@ data class WriteUiState(
     val canScan: Boolean get() = fields != null && loadError == null && !lastWriteVerified
 }
 
-data class OverwritePrompt(val uid: String, val existingSummary: String)
+data class OverwritePrompt(
+    val uid: String,
+    val existingSummary: String,
+    /**
+     * The spool ID the tag holds now, or null when its content did not parse.
+     *
+     * Null is exactly the case where [OverwriteMode.SpoolIdOnly] cannot be offered: keeping the rest
+     * of a tag whose rest could not be read would leave it as broken as it is, so the only honest
+     * choice left is a full overwrite.
+     */
+    val existingSpoolId: Int?,
+    val newSpoolId: Int,
+) {
+    val canWriteSpoolIdOnly: Boolean get() = existingSpoolId != null
+}
 
 sealed interface WriteMessage {
-    data class Written(val uid: String) : WriteMessage
+    /** @param spoolIdOnly the tag kept its existing data and only its spool ID changed. */
+    data class Written(val uid: String, val spoolIdOnly: Boolean) : WriteMessage
 
     data class Info(val text: String) : WriteMessage
 

@@ -52,18 +52,15 @@ class MifareTagReaderWriter(
     }
 
     /**
-     * @param allowOverwrite when false, an already-written tag is reported as
-     *   [TagWriteResult.OverwriteRequired] and nothing is written (REQUIREMENTS.md §5).
+     * @param overwrite what may happen to a tag that already holds data. With [OverwriteMode.Ask]
+     *   such a tag is reported as [TagWriteResult.OverwriteRequired] and nothing is written
+     *   (REQUIREMENTS.md §5).
      */
     suspend fun write(
         session: MifareSession,
         fields: MappedFields,
-        allowOverwrite: Boolean,
+        overwrite: OverwriteMode,
     ): TagWriteResult = withContext(ioDispatcher) {
-        val payload = TagCodec.encode(fields)
-        val primaryCiphertext = PayloadCipher.encrypt(payload.take(TagCodec.HALF_LENGTH).toTagBytes())
-        val secondaryPlaintext = payload.drop(TagCodec.HALF_LENGTH).toTagBytes()
-
         var partiallyWritten = false
         try {
             session.use {
@@ -81,11 +78,53 @@ class MifareTagReaderWriter(
                         partiallyWritten = false,
                     )
                 }
-                if (state == TagState.Secured && !allowOverwrite) {
+
+                // Only a secured tag has content worth asking about or worth keeping; a blank one is
+                // written in full whatever mode was asked for.
+                val payload = if (state != TagState.Secured) {
+                    TagCodec.encode(fields)
+                } else when (overwrite) {
                     // Still authenticated to sector 1 from the probe, so the existing content can be
                     // shown to the user in the confirmation prompt.
-                    return@withContext TagWriteResult.OverwriteRequired(readSecuredPayload(it))
+                    OverwriteMode.Ask ->
+                        return@withContext TagWriteResult.OverwriteRequired(readSecuredPayload(it))
+
+                    OverwriteMode.Replace -> TagCodec.encode(fields)
+
+                    OverwriteMode.SpoolIdOnly -> {
+                        val spliced = try {
+                            TagCodec.withSpoolId(readRawPayload(it), fields.spoolmanSpoolId)
+                        } catch (e: TagDecodeException) {
+                            return@withContext TagWriteResult.Failed(
+                                TagFailure.ExistingContentUnreadable(
+                                    e.message ?: "existing payload could not be decoded"
+                                ),
+                                partiallyWritten = false,
+                            )
+                        }
+                        // Reading the payload ends on sector 2, and a MIFARE Classic session holds
+                        // one sector at a time — sector 1 has to be claimed again before writing it.
+                        if (!reauthenticate(it, MifareLayout.PRIMARY_SECTOR, derivedKey)) {
+                            return@withContext TagWriteResult.Failed(
+                                // Not UnknownKeyScheme: this same key authenticated moments ago in
+                                // the probe, so the tag's key scheme is not in doubt and the verdict
+                                // must stay retryable.
+                                TagFailure.TagLost(
+                                    IOException(
+                                        "sector 1 could not be re-authenticated after reading the " +
+                                            "tag's existing content"
+                                    )
+                                ),
+                                partiallyWritten = false,
+                            )
+                        }
+                        spliced
+                    }
                 }
+
+                val primaryCiphertext =
+                    PayloadCipher.encrypt(payload.take(TagCodec.HALF_LENGTH).toTagBytes())
+                val secondaryPlaintext = payload.drop(TagCodec.HALF_LENGTH).toTagBytes()
 
                 // Sector 1 data blocks. The probe left us authenticated with whichever key worked.
                 primaryCiphertext.toBlocks().forEachIndexed { index, block ->
@@ -228,6 +267,20 @@ class MifareTagReaderWriter(
             }
         }
         return TagState.Unknown
+    }
+
+    /**
+     * Claims [sector] again partway through an operation, retrying with a reconnect in between for
+     * the same reason [probeState] does: a genuine tag has been observed rejecting a correct key on
+     * one attempt and accepting it on the next (REQUIREMENTS.md `REQ-15`). A single rejection is not
+     * evidence about the tag, and here the key is already known to work — the probe used it.
+     */
+    private fun reauthenticate(session: MifareSession, sector: Int, key: ByteArray): Boolean {
+        repeat(probeAttempts) { attempt ->
+            if (session.authenticateSectorWithKeyA(sector, key)) return true
+            if (attempt < probeAttempts - 1) session.reconnect()
+        }
+        return false
     }
 
     private fun probeOnce(session: MifareSession, derivedKey: ByteArray): TagState = when {

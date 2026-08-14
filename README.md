@@ -37,9 +37,14 @@ All four, or the app can do nothing useful. Worth checking before you install ra
 4. Hold a tag to the phone. The app writes it, reads it back, and compares before reporting success —
    write-and-verify, never write-only.
 
-A tag that already holds data is detected and you are asked before it is overwritten. A genuine
-Creality spool carries two tags with identical payloads, so the app can write a second one without
-making you select the spool again.
+A tag that already holds data is detected and you are asked before it is overwritten — and you can
+answer in two ways. Replacing everything writes the spool you picked in full. **Changing only the
+spool ID** leaves the tag exactly as it is and moves nothing but the ID, which is what you want for a
+genuine Creality tag: its material, colour and weight describe the physical spool and cannot be
+recreated once they are gone.
+
+A genuine Creality spool carries two tags with identical payloads, so the app can write a second one
+without making you select the spool again.
 
 There is also a **read & check** mode: hold any tag to the phone to see what is on it, and whether it
 is blank, written by this app, written under an unrelated key scheme, or corrupt. That path never

@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ch.jeanrichard.nfcspoolwriter.R
 import ch.jeanrichard.nfcspoolwriter.data.nfc.DeviceCompatibility
+import ch.jeanrichard.nfcspoolwriter.data.nfc.OverwriteMode
 import ch.jeanrichard.nfcspoolwriter.ui.confirm.MessageWithRetry
 import ch.jeanrichard.nfcspoolwriter.ui.nfc.NfcReaderEffect
 
@@ -50,20 +51,40 @@ fun WriteScreen(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(stringResource(R.string.write_overwrite_body, prompt.existingSummary))
+                    if (prompt.canWriteSpoolIdOnly) {
+                        Text(
+                            stringResource(
+                                R.string.write_overwrite_id_only_body,
+                                prompt.newSpoolId,
+                            )
+                        )
+                    }
                     Text(
                         text = stringResource(R.string.write_overwrite_retap),
                         style = MaterialTheme.typography.bodySmall,
                     )
                 }
             },
+            // Three outcomes do not fit the confirm/dismiss row, so they stack. Keeping the ID-only
+            // choice in the dialog is the point of the feature: it is only ever offered here, at the
+            // moment the user learns the tag is not empty.
             confirmButton = {
-                TextButton(onClick = viewModel::confirmOverwrite) {
-                    Text(stringResource(R.string.write_overwrite_confirm))
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = viewModel::cancelOverwrite) {
-                    Text(stringResource(R.string.action_cancel))
+                Column(horizontalAlignment = Alignment.End) {
+                    TextButton(
+                        onClick = { viewModel.confirmOverwrite(OverwriteMode.Replace) }
+                    ) {
+                        Text(stringResource(R.string.write_overwrite_confirm))
+                    }
+                    if (prompt.canWriteSpoolIdOnly) {
+                        TextButton(
+                            onClick = { viewModel.confirmOverwrite(OverwriteMode.SpoolIdOnly) }
+                        ) {
+                            Text(stringResource(R.string.write_overwrite_id_only))
+                        }
+                    }
+                    TextButton(onClick = viewModel::cancelOverwrite) {
+                        Text(stringResource(R.string.action_cancel))
+                    }
                 }
             },
         )
@@ -166,7 +187,10 @@ private fun MessageCard(message: WriteMessage) {
         ) {
             when (message) {
                 is WriteMessage.Written -> Text(
-                    text = stringResource(R.string.write_success),
+                    text = stringResource(
+                        if (message.spoolIdOnly) R.string.write_success_id_only
+                        else R.string.write_success
+                    ),
                     style = MaterialTheme.typography.bodyMedium,
                 )
 

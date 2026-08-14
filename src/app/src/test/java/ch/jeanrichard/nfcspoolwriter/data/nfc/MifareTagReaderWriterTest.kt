@@ -29,7 +29,7 @@ class MifareTagReaderWriterTest {
     fun `writes a blank tag and verifies it`() = runTest {
         val session = FakeMifareSession.blank()
 
-        val result = readerWriter.write(session, fields, allowOverwrite = false)
+        val result = readerWriter.write(session, fields, overwrite = OverwriteMode.Ask)
 
         assertEquals(TagWriteResult.Success, result)
     }
@@ -37,7 +37,7 @@ class MifareTagReaderWriterTest {
     @Test
     fun `written blank tag reads back the same fields`() = runTest {
         val session = FakeMifareSession.blank()
-        readerWriter.write(session, fields, allowOverwrite = false)
+        readerWriter.write(session, fields, overwrite = OverwriteMode.Ask)
 
         // A fresh session over the same storage, since write() closes the one it was given.
         val reread = readerWriter.read(session.reopened())
@@ -49,7 +49,7 @@ class MifareTagReaderWriterTest {
     fun `installs the derived key on sector 1 when writing a blank tag`() = runTest {
         val session = FakeMifareSession.blank()
 
-        readerWriter.write(session, fields, allowOverwrite = false)
+        readerWriter.write(session, fields, overwrite = OverwriteMode.Ask)
 
         val expected = KeyDerivation.deriveSectorKey(session.uid)
         assertEquals(expected.toHex(), session.keyForSector(MifareLayout.PRIMARY_SECTOR).toHex())
@@ -60,7 +60,7 @@ class MifareTagReaderWriterTest {
     fun `preserves access bits and GPB when installing the sector key`() = runTest {
         val session = FakeMifareSession.blank()
 
-        readerWriter.write(session, fields, allowOverwrite = false)
+        readerWriter.write(session, fields, overwrite = OverwriteMode.Ask)
 
         val trailer = session.blockOrNull(MifareLayout.PRIMARY_TRAILER_BLOCK)!!
         assertEquals("FF078069", trailer.copyOfRange(6, 10).toHex())
@@ -70,7 +70,7 @@ class MifareTagReaderWriterTest {
     fun `installs the derived key as both Key A and Key B`() = runTest {
         val session = FakeMifareSession.blank()
 
-        readerWriter.write(session, fields, allowOverwrite = false)
+        readerWriter.write(session, fields, overwrite = OverwriteMode.Ask)
 
         val trailer = session.blockOrNull(MifareLayout.PRIMARY_TRAILER_BLOCK)!!
         val key = KeyDerivation.deriveSectorKey(session.uid).toHex()
@@ -82,7 +82,7 @@ class MifareTagReaderWriterTest {
     fun `never modifies the sector 2 trailer`() = runTest {
         val session = FakeMifareSession.blank()
 
-        readerWriter.write(session, fields, allowOverwrite = false)
+        readerWriter.write(session, fields, overwrite = OverwriteMode.Ask)
 
         assertEquals(FakeMifareSession.defaultTrailer().toHex(), session.blockOrNull(11)!!.toHex())
     }
@@ -91,7 +91,7 @@ class MifareTagReaderWriterTest {
     fun `stores sector 1 encrypted and sector 2 as plaintext`() = runTest {
         val session = FakeMifareSession.blank()
 
-        readerWriter.write(session, fields, allowOverwrite = false)
+        readerWriter.write(session, fields, overwrite = OverwriteMode.Ask)
 
         val primary = MifareLayout.primaryDataBlocks
             .map { session.blockOrNull(it)!! }
@@ -110,7 +110,7 @@ class MifareTagReaderWriterTest {
         val updated = fields.copy(spoolmanSpoolId = 99, colorRgb = "00FF00")
         val session = FakeMifareSession.written(payload)
 
-        val result = readerWriter.write(session, updated, allowOverwrite = true)
+        val result = readerWriter.write(session, updated, overwrite = OverwriteMode.Replace)
 
         assertEquals(TagWriteResult.Success, result)
         assertEquals(
@@ -124,7 +124,7 @@ class MifareTagReaderWriterTest {
     fun `does not rewrite the trailer on an already-secured tag`() = runTest {
         val session = FakeMifareSession.written(payload)
 
-        readerWriter.write(session, fields, allowOverwrite = true)
+        readerWriter.write(session, fields, overwrite = OverwriteMode.Replace)
 
         assertTrue(session.writeLog.none { it.first == MifareLayout.PRIMARY_TRAILER_BLOCK })
     }
@@ -135,7 +135,7 @@ class MifareTagReaderWriterTest {
     fun `reports overwrite required for an already-written tag`() = runTest {
         val session = FakeMifareSession.written(payload)
 
-        val result = readerWriter.write(session, fields, allowOverwrite = false)
+        val result = readerWriter.write(session, fields, overwrite = OverwriteMode.Ask)
 
         assertEquals(
             TagWriteResult.OverwriteRequired(TagReadResult.Written(TagCodec.decode(payload))),
@@ -147,7 +147,7 @@ class MifareTagReaderWriterTest {
     fun `writes nothing when overwrite is refused`() = runTest {
         val session = FakeMifareSession.written(payload)
 
-        readerWriter.write(session, fields, allowOverwrite = false)
+        readerWriter.write(session, fields, overwrite = OverwriteMode.Ask)
 
         assertTrue(session.writeLog.isEmpty())
     }
@@ -162,7 +162,7 @@ class MifareTagReaderWriterTest {
             writeCorruptPrimaryBlock()
         }
 
-        val result = readerWriter.write(session, fields, allowOverwrite = false)
+        val result = readerWriter.write(session, fields, overwrite = OverwriteMode.Ask)
 
         val existing = (result as TagWriteResult.OverwriteRequired).existing
         assertTrue("expected Corrupt, was $existing", existing is TagReadResult.Corrupt)
@@ -172,9 +172,155 @@ class MifareTagReaderWriterTest {
     fun `recovers a corrupt tag when overwrite is permitted`() = runTest {
         val session = FakeMifareSession.written(payload).apply { writeCorruptPrimaryBlock() }
 
-        val result = readerWriter.write(session, fields, allowOverwrite = true)
+        val result = readerWriter.write(session, fields, overwrite = OverwriteMode.Replace)
 
         assertEquals(TagWriteResult.Success, result)
+    }
+
+    // --- Write: spool ID only ----------------------------------------------------------------
+
+    /**
+     * The point of the mode: a tag carrying data this app did not author keeps every byte of it, and
+     * only the field that names the Spoolman spool moves. The fields asserted here are the ones the
+     * new spool would otherwise have replaced.
+     */
+    @Test
+    fun `spool id only replaces the serial and keeps every other field`() = runTest {
+        val existing = TagCodec.encode(
+            fields.copy(
+                filamentCatalogId = "02002",
+                colorRgb = "0000FF",
+                weight = WeightBucket.G500,
+                batchNumber = "XY9",
+                dateCode = "25027",
+                spoolmanSpoolId = 7,
+            )
+        )
+        val session = FakeMifareSession.written(existing)
+
+        val result = readerWriter.write(session, fields, overwrite = OverwriteMode.SpoolIdOnly)
+
+        assertEquals(TagWriteResult.Success, result)
+        val reread = (readerWriter.read(session.reopened()) as TagReadResult.Written).payload
+        assertEquals(fields.spoolmanSpoolId, reread.fields.spoolmanSpoolId)
+        assertEquals("02002", reread.fields.filamentCatalogId)
+        assertEquals("0000FF", reread.fields.colorRgb)
+        assertEquals(WeightBucket.G500, reread.fields.weight)
+        assertEquals("XY9", reread.fields.batchNumber)
+        assertEquals("25027", reread.fields.dateCode)
+    }
+
+    /**
+     * The reserve is left alone even though a full write derives it from the spool ID (DESIGN.md
+     * DEC-01): on a genuine tag it holds vendor bytes whose purpose is unknown, and preserving those
+     * is the whole reason this mode exists.
+     */
+    @Test
+    fun `spool id only leaves the reserve field untouched`() = runTest {
+        val existing = TagCodec.encode(fields.copy(spoolmanSpoolId = 7))
+        val session = FakeMifareSession.written(existing)
+
+        readerWriter.write(session, fields, overwrite = OverwriteMode.SpoolIdOnly)
+
+        val reread = readerWriter.read(session.reopened()) as TagReadResult.Written
+        assertEquals(TagCodec.decode(existing).reserve, reread.payload.reserve)
+    }
+
+    /** Everything outside the serial-number field is byte-identical, padding and all. */
+    @Test
+    fun `spool id only changes exactly six characters of the payload`() = runTest {
+        val existing = TagCodec.encode(fields.copy(spoolmanSpoolId = 7))
+        val session = FakeMifareSession.written(existing)
+
+        readerWriter.write(session, fields, overwrite = OverwriteMode.SpoolIdOnly)
+
+        val written = session.payloadText()
+        assertEquals(existing.length, written.length)
+        val changed = existing.indices.filter { existing[it] != written[it] }
+        assertEquals(listOf(32, 33), changed)
+    }
+
+    /** Nothing to preserve on a blank tag, so the mode degrades to a full write rather than failing. */
+    @Test
+    fun `spool id only writes a blank tag in full`() = runTest {
+        val session = FakeMifareSession.blank()
+
+        val result = readerWriter.write(session, fields, overwrite = OverwriteMode.SpoolIdOnly)
+
+        assertEquals(TagWriteResult.Success, result)
+        assertEquals(
+            TagReadResult.Written(TagCodec.decode(payload)),
+            readerWriter.read(session.reopened()),
+        )
+    }
+
+    /**
+     * Splicing an ID into bytes that do not decode would leave the tag as broken as it already is, so
+     * the mode refuses rather than half-repairing it.
+     */
+    @Test
+    fun `spool id only refuses a tag whose content does not decode`() = runTest {
+        val session = FakeMifareSession.written(payload).apply { writeCorruptPrimaryBlock() }
+
+        val result = readerWriter.write(session, fields, overwrite = OverwriteMode.SpoolIdOnly)
+
+        val failed = result as TagWriteResult.Failed
+        assertTrue(
+            "expected ExistingContentUnreadable, was ${failed.failure}",
+            failed.failure is TagFailure.ExistingContentUnreadable,
+        )
+        assertEquals(false, failed.partiallyWritten)
+        assertEquals(false, failed.failure.retryable)
+        assertTrue(session.writeLog.isEmpty())
+    }
+
+    /**
+     * Sector 2 is read on the default key, and a MIFARE Classic session holds one sector at a time —
+     * so sector 1 has to be re-authenticated before writing. A genuine tag has been observed
+     * rejecting a correct key once and accepting it on the next attempt (`REQ-15`), and the key here
+     * is already known to work, so one rejection must be retried rather than believed.
+     */
+    @Test
+    fun `spool id only retries a spurious rejection when reclaiming sector 1`() = runTest {
+        val session = FakeMifareSession.written(payload)
+        // Two authentications succeed (probe, sector 2 during the read); the third is the reclaim.
+        session.failAuthenticationsAt += 3
+
+        val result = readerWriter.write(session, fields, overwrite = OverwriteMode.SpoolIdOnly)
+
+        assertEquals(TagWriteResult.Success, result)
+        assertEquals(1, session.reconnectCount)
+    }
+
+    /**
+     * Once the retries are spent the write stops — but as a *retryable* failure and with nothing
+     * written, because the key authenticated moments earlier in the probe and so the tag's key
+     * scheme is not what is in doubt.
+     */
+    @Test
+    fun `spool id only fails retryably when sector 1 cannot be reclaimed at all`() = runTest {
+        val session = FakeMifareSession.written(payload)
+        session.failAuthenticationsAt += setOf(3, 4)
+
+        val result = readerWriter.write(session, fields, overwrite = OverwriteMode.SpoolIdOnly)
+
+        val failed = result as TagWriteResult.Failed
+        assertTrue("expected TagLost, was ${failed.failure}", failed.failure is TagFailure.TagLost)
+        assertEquals(true, failed.failure.retryable)
+        assertEquals(false, failed.partiallyWritten)
+        assertTrue(session.writeLog.isEmpty())
+    }
+
+    /** Sector 2 on an unexpected key truncates the payload, which is not content that can be kept. */
+    @Test
+    fun `spool id only refuses when sector 2 cannot be read`() = runTest {
+        val session = FakeMifareSession.written(payload, sectorTwoKey = hexToBytes("A0A1A2A3A4A5"))
+
+        val result = readerWriter.write(session, fields, overwrite = OverwriteMode.SpoolIdOnly)
+
+        assertTrue(
+            (result as TagWriteResult.Failed).failure is TagFailure.ExistingContentUnreadable,
+        )
     }
 
     // --- Write: failures -------------------------------------------------------------------
@@ -183,7 +329,7 @@ class MifareTagReaderWriterTest {
     fun `rejects a 7-byte UID without writing`() = runTest {
         val session = FakeMifareSession.blank(uid = hexToBytes("11223344556677"))
 
-        val result = readerWriter.write(session, fields, allowOverwrite = false)
+        val result = readerWriter.write(session, fields, overwrite = OverwriteMode.Ask)
 
         assertEquals(
             TagWriteResult.Failed(TagFailure.IncompatibleUidLength, partiallyWritten = false),
@@ -196,7 +342,7 @@ class MifareTagReaderWriterTest {
     fun `incompatible UID is not retryable`() = runTest {
         val session = FakeMifareSession.blank(uid = hexToBytes("11223344556677"))
 
-        val result = readerWriter.write(session, fields, allowOverwrite = false)
+        val result = readerWriter.write(session, fields, overwrite = OverwriteMode.Ask)
 
         assertEquals(false, (result as TagWriteResult.Failed).failure.retryable)
     }
@@ -234,7 +380,7 @@ class MifareTagReaderWriterTest {
         val session = FakeMifareSession.blank()
         session.spuriousAuthFailures = 2
 
-        val result = readerWriter.write(session, fields, allowOverwrite = false)
+        val result = readerWriter.write(session, fields, overwrite = OverwriteMode.Ask)
 
         assertEquals(TagWriteResult.Success, result)
     }
@@ -257,7 +403,7 @@ class MifareTagReaderWriterTest {
             sectorKeys = mapOf(MifareLayout.PRIMARY_SECTOR to hexToBytes("A0A1A2A3A4A5")),
         )
 
-        val result = readerWriter.write(session, fields, allowOverwrite = false)
+        val result = readerWriter.write(session, fields, overwrite = OverwriteMode.Ask)
 
         assertEquals(
             TagWriteResult.Failed(TagFailure.UnknownKeyScheme, partiallyWritten = false),
@@ -271,7 +417,7 @@ class MifareTagReaderWriterTest {
         val session = FakeMifareSession.blank()
         session.writeFailures[MifareLayout.primaryDataBlocks.first()] = 2
 
-        val result = readerWriter.write(session, fields, allowOverwrite = false)
+        val result = readerWriter.write(session, fields, overwrite = OverwriteMode.Ask)
 
         assertEquals(TagWriteResult.Success, result)
         assertEquals(3, session.writeAttempts[MifareLayout.primaryDataBlocks.first()])
@@ -282,7 +428,7 @@ class MifareTagReaderWriterTest {
         val session = FakeMifareSession.blank()
         session.writeFailures[MifareLayout.primaryDataBlocks.first()] = Int.MAX_VALUE
 
-        val result = readerWriter.write(session, fields, allowOverwrite = false)
+        val result = readerWriter.write(session, fields, overwrite = OverwriteMode.Ask)
 
         val failed = result as TagWriteResult.Failed
         assertTrue("expected TagLost, was ${failed.failure}", failed.failure is TagFailure.TagLost)
@@ -297,7 +443,7 @@ class MifareTagReaderWriterTest {
         val session = FakeMifareSession.blank()
         session.writeFailures[MifareLayout.primaryDataBlocks.first()] = Int.MAX_VALUE
 
-        val result = readerWriter.write(session, fields, allowOverwrite = false)
+        val result = readerWriter.write(session, fields, overwrite = OverwriteMode.Ask)
 
         assertEquals(false, (result as TagWriteResult.Failed).partiallyWritten)
     }
@@ -308,7 +454,7 @@ class MifareTagReaderWriterTest {
         val session = FakeMifareSession.blank()
         session.writeFailures[MifareLayout.primaryDataBlocks.last()] = Int.MAX_VALUE
 
-        val result = readerWriter.write(session, fields, allowOverwrite = false)
+        val result = readerWriter.write(session, fields, overwrite = OverwriteMode.Ask)
 
         val failed = result as TagWriteResult.Failed
         assertEquals(true, failed.partiallyWritten)
@@ -319,7 +465,7 @@ class MifareTagReaderWriterTest {
     fun `tag lost on connect is a retryable failure`() = runTest {
         val session = FakeMifareSession.blank().apply { failConnect = true }
 
-        val result = readerWriter.write(session, fields, allowOverwrite = false)
+        val result = readerWriter.write(session, fields, overwrite = OverwriteMode.Ask)
 
         val failed = result as TagWriteResult.Failed
         assertTrue(failed.failure is TagFailure.TagLost)
@@ -334,7 +480,7 @@ class MifareTagReaderWriterTest {
         session.corruptOnWrite[MifareLayout.primaryDataBlocks.first()] =
             ByteArray(MifareLayout.BLOCK_SIZE) { 0x5A }
 
-        val result = readerWriter.write(session, fields, allowOverwrite = false)
+        val result = readerWriter.write(session, fields, overwrite = OverwriteMode.Ask)
 
         val failed = result as TagWriteResult.Failed
         assertTrue(
@@ -350,7 +496,7 @@ class MifareTagReaderWriterTest {
         session.corruptOnWrite[MifareLayout.secondaryDataBlocks.first()] =
             "wrong bytes here".toByteArray(Charsets.ISO_8859_1)
 
-        val result = readerWriter.write(session, fields, allowOverwrite = false)
+        val result = readerWriter.write(session, fields, overwrite = OverwriteMode.Ask)
 
         assertTrue((result as TagWriteResult.Failed).failure is TagFailure.VerifyMismatch)
     }
@@ -359,7 +505,7 @@ class MifareTagReaderWriterTest {
     fun `closes the session on success`() = runTest {
         val session = FakeMifareSession.blank()
 
-        readerWriter.write(session, fields, allowOverwrite = false)
+        readerWriter.write(session, fields, overwrite = OverwriteMode.Ask)
 
         assertEquals(true, session.closed)
     }
@@ -369,7 +515,7 @@ class MifareTagReaderWriterTest {
         val session = FakeMifareSession.blank()
         session.writeFailures[MifareLayout.primaryDataBlocks.first()] = Int.MAX_VALUE
 
-        readerWriter.write(session, fields, allowOverwrite = false)
+        readerWriter.write(session, fields, overwrite = OverwriteMode.Ask)
 
         assertEquals(true, session.closed)
     }
@@ -380,7 +526,7 @@ class MifareTagReaderWriterTest {
         val session = FakeMifareSession.blank()
         session.writeFailures[MifareLayout.primaryDataBlocks.first()] = 1
 
-        val result = single.write(session, fields, allowOverwrite = false)
+        val result = single.write(session, fields, overwrite = OverwriteMode.Ask)
 
         assertTrue(result is TagWriteResult.Failed)
         assertEquals(1, session.writeAttempts[MifareLayout.primaryDataBlocks.first()])
@@ -472,4 +618,16 @@ class MifareTagReaderWriterTest {
  */
 private fun FakeMifareSession.writeCorruptPrimaryBlock() {
     forceBlock(MifareLayout.primaryDataBlocks.first(), ByteArray(MifareLayout.BLOCK_SIZE))
+}
+
+/**
+ * The payload the tag holds right now, reassembled the way the format defines it (spec §11). Reads
+ * the stored blocks directly rather than through a session, so it can be used to compare a tag
+ * against what it held before a write.
+ */
+private fun FakeMifareSession.payloadText(): String {
+    val blocksOf = { blocks: List<Int> -> blocks.map { blockOrNull(it)!! }.reduce(ByteArray::plus) }
+    val primary = PayloadCipher.decrypt(blocksOf(MifareLayout.primaryDataBlocks))
+    return String(primary, Charsets.ISO_8859_1) +
+        String(blocksOf(MifareLayout.secondaryDataBlocks), Charsets.ISO_8859_1)
 }
