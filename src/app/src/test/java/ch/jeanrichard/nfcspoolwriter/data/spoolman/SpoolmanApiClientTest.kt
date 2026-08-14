@@ -234,12 +234,41 @@ class SpoolmanApiClientTest {
         assertEquals(137, (result as SpoolmanResult.Success).value.totalCount)
     }
 
-    /** A proxy may strip the header; falling back to the page size only loses the "n of m" display. */
+    /**
+     * A proxy may strip the header. Reporting null rather than the page size is what lets the
+     * repository tell "the server says there are 200" from "the server said nothing", which decides
+     * whether it can stop paging on the total.
+     */
     @Test
-    fun `falls back to page size when the total count header is missing`() = runTest {
+    fun `a missing total count header is reported as unknown`() = runTest {
         val result = client { "[$spoolJson]" }.listSpools(baseUrl)
 
-        assertEquals(1, (result as SpoolmanResult.Success).value.totalCount)
+        assertNull((result as SpoolmanResult.Success).value.totalCount)
+    }
+
+    /** A count cannot be negative; reading it as unknown stops it reaching pagination as a stop signal. */
+    @Test
+    fun `a negative total count header is reported as unknown`() = runTest {
+        val result = client(
+            headers = headersOf(
+                HttpHeaders.ContentType to listOf(ContentType.Application.Json.toString()),
+                SpoolmanApiClient.TOTAL_COUNT_HEADER to listOf("-1"),
+            )
+        ) { "[$spoolJson]" }.listSpools(baseUrl)
+
+        assertNull((result as SpoolmanResult.Success).value.totalCount)
+    }
+
+    @Test
+    fun `an unparseable total count header is reported as unknown`() = runTest {
+        val result = client(
+            headers = headersOf(
+                HttpHeaders.ContentType to listOf(ContentType.Application.Json.toString()),
+                SpoolmanApiClient.TOTAL_COUNT_HEADER to listOf("many"),
+            )
+        ) { "[$spoolJson]" }.listSpools(baseUrl)
+
+        assertNull((result as SpoolmanResult.Success).value.totalCount)
     }
 
     @Test

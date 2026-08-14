@@ -201,7 +201,7 @@ Offsets are 0-indexed, end-exclusive (`[start, end)`).
 | `[12, 17)` | 5 | Material ID | 5 ASCII digits selecting a material profile (temperatures, cooling) from the printer's material database. `01001` = Creality "Hyper PLA"; `00001` = Generic PLA. There is no structural prefix digit. |
 | `[17, 24)` | 7 | Colour | The literal digit `0`, then 6 hex digits `RRGGBB`. Treat as case-insensitive hex. |
 | `[24, 28)` | 4 | Filament length code | 4 ASCII digits from a fixed set of weight buckets (below) — not grams, not millimetres. |
-| `[28, 34)` | 6 | Serial number | 6 ASCII digits, zero-padded. Not unique in practice: genuine tags from different spools have both been observed carrying `000001`. **This project writes the Spoolman spool ID here.** |
+| `[28, 34)` | 6 | Serial number | 6 ASCII digits, zero-padded. Not unique in practice: genuine tags from different spools have both been observed carrying `000001`. **This project writes the Spoolman spool ID here.** The value `1` is special-cased by at least one firmware — see below. |
 | `[34, 48)` | 14 | Reserve | 14 bytes. **Not all zeros on genuine tags** — see below. **This project writes the Spoolman spool ID zero-padded to 6 digits, then 8 zeros** (spool `42` → `00004200000000`). Readers must surface this field verbatim, including non-printable bytes. |
 | `[48, 96)` | 48 | Padding | No known field. See §7 — write spaces, ignore on read. |
 
@@ -220,6 +220,17 @@ a bucket. They encode the spool's **nominal full weight**, not remaining filamen
 
 These are not gram values; they appear to be nominal filament length in metres for 1.75 mm filament at
 typical PLA density, but the derivation is irrelevant — treat them as five opaque lookup codes.
+
+### Serial number `1` is ignored by Jacobean's firmware
+
+Jacobean's firmware ignores a serial of `1`, treating it as "no ID": a tag carrying it reads correctly,
+but the printer does not look the spool up in Spoolman or select it automatically. This is consistent
+with `000001` being what genuine Creality tags carry when the serial means nothing (above), so the
+firmware cannot distinguish a real spool ID 1 from a placeholder.
+
+Writing it is still correct — the ID is the user's data, and other firmwares do not share the quirk — so
+this project writes the value and warns on the confirm screen instead of remapping it. Only the value `1`
+is affected; `000001` as written by this project *is* that value, zero-padded.
 
 ### The date code `[3, 8)`
 
@@ -376,9 +387,9 @@ sector 2: 0x00 × 48
 
 **Confirmed against a real K2/CFS printer:** a tag written by this app is accepted, including with all of
 the following simultaneously differing from a genuine tag — reserve carrying a spool ID, byte 40 as
-`'0'`, a constant lead code, Creality's supplier ID on a third-party spool, and a sector 2 that is not
-all-NUL. That accepted tag carried `k2` in sector 2; this project now writes only spaces there, which is
-the one byte difference from the confirmed sequence.
+`'0'`, constant batch and date codes, Creality's supplier ID on a third-party spool, and a sector 2 that
+is not all-NUL. That accepted tag carried `k2` in sector 2, where this project writes only spaces — the
+one byte difference between the confirmed sequence and what ships.
 
 **Not confirmed:**
 

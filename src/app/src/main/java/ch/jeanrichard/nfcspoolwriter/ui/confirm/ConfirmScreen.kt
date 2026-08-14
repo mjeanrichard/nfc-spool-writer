@@ -1,5 +1,6 @@
 package ch.jeanrichard.nfcspoolwriter.ui.confirm
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,6 +23,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ch.jeanrichard.nfcspoolwriter.R
+import ch.jeanrichard.nfcspoolwriter.domain.mapping.MappingWarning
 import ch.jeanrichard.nfcspoolwriter.domain.model.MappedFields
 
 /**
@@ -89,6 +91,31 @@ fun ConfirmScreen(
                 }
             }
 
+            // Above the field table rather than beside the notes: a warning is about a value that
+            // looks perfectly correct in the table, so it has to be read before the table is. Only the
+            // title is tinted, matching the unmappable card — a filled card would read as the stronger
+            // of the two, and this one does not block the write.
+            if (state.warnings.isNotEmpty()) {
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(
+                        modifier = Modifier.padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Text(
+                            text = stringResource(R.string.confirm_warnings_title),
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.tertiary,
+                        )
+                        state.warnings.forEach { warning ->
+                            Text(
+                                text = stringResource(warning.messageRes),
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                        }
+                    }
+                }
+            }
+
             state.fields?.let { fields ->
                 FieldTable(fields = fields, materialName = state.materialName)
             }
@@ -118,6 +145,15 @@ fun ConfirmScreen(
         }
     }
 }
+
+/**
+ * The user-facing text for a warning the domain layer only names. Kept as an exhaustive `when` so a new
+ * [MappingWarning] cannot reach the screen without one.
+ */
+private val MappingWarning.messageRes: Int
+    @StringRes get() = when (this) {
+        MappingWarning.IGNORED_SPOOL_ID -> R.string.confirm_warning_ignored_spool_id
+    }
 
 @Composable
 private fun FieldTable(fields: MappedFields, materialName: String?) {

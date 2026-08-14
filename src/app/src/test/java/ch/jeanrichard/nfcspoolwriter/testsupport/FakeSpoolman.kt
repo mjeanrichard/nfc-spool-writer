@@ -32,7 +32,9 @@ fun fakeSpoolmanRepository(
     val listResult: SpoolmanResult<SpoolPage> = if (listError != null) {
         SpoolmanResult.Failure(listError)
     } else {
-        SpoolmanResult.Success(SpoolPage(spools, totalCount ?: spools.size))
+        // Passed through as-is: null models a server that reported no total, which is a case the
+        // consumers have to handle rather than one the fake should paper over.
+        SpoolmanResult.Success(SpoolPage(spools, totalCount))
     }
     val testResult: SpoolmanResult<Unit> =
         if (testError != null) SpoolmanResult.Failure(testError) else SpoolmanResult.Success(Unit)

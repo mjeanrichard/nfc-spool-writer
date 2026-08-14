@@ -1,6 +1,7 @@
 package ch.jeanrichard.nfcspoolwriter.ui.confirm
 
 import ch.jeanrichard.nfcspoolwriter.data.spoolman.SpoolmanError
+import ch.jeanrichard.nfcspoolwriter.domain.mapping.MappingWarning
 import ch.jeanrichard.nfcspoolwriter.domain.model.WeightBucket
 import ch.jeanrichard.nfcspoolwriter.testsupport.MainDispatcherRule
 import ch.jeanrichard.nfcspoolwriter.testsupport.fakeSpoolmanRepository
@@ -67,6 +68,20 @@ class ConfirmViewModelTest {
         val state = viewModel(testSpool(colorHex = null)).state.value
 
         assertTrue(state.notes.any { it.contains("colour") })
+    }
+
+    @Test
+    fun `a clean mapping has no warnings`() = runTest {
+        assertEquals(emptyList<MappingWarning>(), viewModel().state.value.warnings)
+    }
+
+    /** Spool ID 1 is written as-is; the printer-side quirk is surfaced without blocking the write. */
+    @Test
+    fun `spool id 1 is warned about but still writable`() = runTest {
+        val state = viewModel(testSpool(id = 1)).state.value
+
+        assertEquals(listOf(MappingWarning.IGNORED_SPOOL_ID), state.warnings)
+        assertTrue(state.canWrite)
     }
 
     @Test

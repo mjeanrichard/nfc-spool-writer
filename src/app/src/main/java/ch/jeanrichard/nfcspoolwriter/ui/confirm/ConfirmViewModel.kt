@@ -7,6 +7,7 @@ import ch.jeanrichard.nfcspoolwriter.data.spoolman.SpoolmanRepository
 import ch.jeanrichard.nfcspoolwriter.data.spoolman.SpoolmanResult
 import ch.jeanrichard.nfcspoolwriter.domain.mapping.FieldMappingService
 import ch.jeanrichard.nfcspoolwriter.domain.mapping.MappingResult
+import ch.jeanrichard.nfcspoolwriter.domain.mapping.MappingWarning
 import ch.jeanrichard.nfcspoolwriter.domain.model.MappedFields
 import ch.jeanrichard.nfcspoolwriter.domain.model.Spool
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -59,6 +60,7 @@ class ConfirmViewModel(
                                 materialName = materialCatalog
                                     .findById(mapping.fields.filamentCatalogId)?.name,
                                 notes = mapping.notes,
+                                warnings = mapping.warnings,
                             )
                         }
 
@@ -86,6 +88,8 @@ data class ConfirmUiState(
     val materialName: String? = null,
     /** Approximations the mapping made, shown so the user can catch a bad auto-mapping. */
     val notes: List<String> = emptyList(),
+    /** Values written as-is that will still misbehave at the printer. Does not block writing. */
+    val warnings: List<MappingWarning> = emptyList(),
     val unmappableReason: String? = null,
     val error: String? = null,
 ) {
