@@ -33,6 +33,14 @@ The Creality CFS RFID format is proprietary and undocumented by Creality. It has
 reverse-engineered by the community; this project's own understanding, validated against real
 hardware, lives in [TAG_FORMAT_SPEC.md](TAG_FORMAT_SPEC.md).
 
+One source is authoritative about *how a tag is consumed*, as opposed to how it is laid out:
+
+- [Jacobean's K2 Plus custom firmware — RFID](https://jacob10383.github.io/k2-plus-custom-firmware/rfid/)
+  documents which fields a printer actually reads and how it resolves a spool. Where this project's
+  understanding of reader behaviour disagrees with it, that page wins — it describes running code,
+  not an inference from tag contents. It says nothing about encryption, keys or sectors, so it does not
+  compete with TAG_FORMAT_SPEC.md on the format itself.
+
 Reference projects, useful for cross-checking but **not authoritative** — where they disagree with
 TAG_FORMAT_SPEC.md, that document reflects hardware observation and wins:
 
@@ -130,15 +138,18 @@ devices. The meaningful signal is the **`com.nxp.mifare`** system feature.
   than silently rewritten.
 - `REQ-13` — **Overwrite protection:** if a tag already contains data, the app detects this and
   **prompts for confirmation** before overwriting. Tags are not write-once, but accidental overwrites
-  must be prevented. Confirming requires a fresh tap, since the tag connection cannot be held open
-  across a dialog.
+  must be prevented. Confirming writes the tag immediately, without asking for a second tap: the tag
+  is normally still against the phone, and a fresh session over the same tag reaches it. If it has
+  left the field the write fails as retryable and the confirmation is remembered, so the next tap of
+  that tag resumes in the mode chosen rather than prompting again.
 - `REQ-16` — **Changing only the spool ID.** The overwrite prompt offers a second way to say yes:
   leave the tag exactly as it is and change **only** the Spoolman spool ID. A tag written by Creality
-  carries a real batch number, date code and reserve bytes that describe the physical spool and cannot
-  be recreated once replaced, so re-pointing such a tag at a different Spoolman spool must not cost the
-  user that data. Every byte outside the serial-number field is preserved, including the reserve — the
-  duplicate ID it holds under `DEC-01` is this project's own convention, not the format's, and refreshing
-  it would defeat the purpose. The option is offered only when the tag's existing content parses: there
+  carries a real batch number, date code, serial number and reserve bytes that describe the physical
+  spool and cannot be recreated once replaced, so re-pointing such a tag at a different Spoolman spool
+  must not cost the user that data. **Exactly one field changes:** the reserve's leading 6 characters,
+  which is what a printer resolves the spool from (TAG_FORMAT_SPEC.md §9). Every other byte is
+  preserved, the serial number included — nothing reads it, so rewriting it would destroy the tag's own
+  data for no gain. The option is offered only when the tag's existing content parses: there
   is nothing worth keeping around a tag that does not, and the app says so rather than half-repairing it.
 - `REQ-14` — **Write failures** (e.g. tag moved away mid-write): auto-retry a few times, then
   surface a clear message with guidance rather than aborting on the first failure. If retries are

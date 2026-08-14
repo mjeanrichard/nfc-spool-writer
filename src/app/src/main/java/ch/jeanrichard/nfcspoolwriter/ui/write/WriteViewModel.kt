@@ -55,15 +55,28 @@ class WriteViewModel(
      * How the user approved overwriting each tag, by UID.
      *
      * Keyed by UID rather than held as a single pending decision because approval is about *this*
-     * tag: after confirming, the next tap could be a different tag, which has to be asked about on
-     * its own terms.
+     * tag: the next tap could be a different tag, which has to be asked about on its own terms.
      *
-     * An entry outlives the tap it was made for **on purpose** — a confirmed tag that is then never
-     * presented keeps its approval for as long as the screen lives, so a user who confirms, gets
-     * distracted, and comes back is not asked twice about the same tag. Entries are dropped when the
-     * write lands, and when it fails in a way that invalidates the choice itself.
+     * [confirmOverwrite] normally spends its approval immediately, so this map is what carries a
+     * decision across a write that could not be completed there and then — the tag lifted away as
+     * the button was pressed, say. Such an entry outlives that attempt **on purpose**: it keeps its
+     * approval for as long as the screen lives, so a user who confirms, gets distracted, and comes
+     * back is not asked twice about the same tag. Entries are dropped when the write lands, and when
+     * it fails in a way that invalidates the choice itself.
      */
     private val approvedOverwrites = mutableMapOf<String, OverwriteMode>()
+
+    /**
+     * The tag whose overwrite prompt is currently showing, so confirming can write it without
+     * waiting for another tap.
+     *
+     * Kept here rather than in [WriteUiState] because the screen has no use for a `Tag`, and kept in
+     * step with [WriteUiState.overwritePrompt]: set when the prompt is raised, cleared by
+     * [confirmOverwrite] and [cancelOverwrite].
+     */
+    private var promptedTag: PromptedTag? = null
+
+    private class PromptedTag(val uid: String, val tag: Tag, val fields: MappedFields)
 
     init {
         load()
@@ -102,40 +115,92 @@ class WriteViewModel(
 
         _state.update { it.copy(busy = true, message = null) }
 
-        viewModelScope.launch {
-            val session = openSession(tag)
-            if (session == null) {
-                // Wrong *tag*, distinct from wrong *phone* — see DeviceCompatibility.
-                finish(WriteMessage.Info(NOT_MIFARE_CLASSIC_MESSAGE))
-                return@launch
-            }
+        viewModelScope.launch { writeTag(tag, fields, confirmedUid = null) }
+    }
 
-            val uid = session.uid.toHexDump()
-            if (uid in _state.value.writtenTags) {
-                session.close()
+    /**
+     * Approves overwriting the prompted tag in [mode] and writes it straight away.
+     *
+     * No second tap is asked for: the tag is normally still against the phone while the dialog is
+     * up, and a fresh session over the same tag handle reaches it — the same close-then-connect the
+     * write path already does mid-operation. If it has left the field the write fails as retryable
+     * and says so, and the approval recorded here means the next tap resumes in [mode] rather than
+     * asking again.
+     *
+     * @param mode never [OverwriteMode.Ask] — the prompt's outcomes are the two ways of saying yes,
+     *   and saying no is [cancelOverwrite].
+     */
+    fun confirmOverwrite(mode: OverwriteMode) {
+        val prompted = promptedTag ?: return
+        promptedTag = null
+        approvedOverwrites[prompted.uid] = mode
+        _state.update { it.copy(overwritePrompt = null, busy = true, message = null) }
+
+        viewModelScope.launch {
+            writeTag(prompted.tag, prompted.fields, confirmedUid = prompted.uid)
+        }
+    }
+
+    fun cancelOverwrite() {
+        promptedTag = null
+        _state.update { it.copy(overwritePrompt = null, message = null) }
+    }
+
+    /**
+     * Opens [tag] and writes [fields] to it, in whichever overwrite mode that tag has been approved
+     * for.
+     *
+     * @param confirmedUid the UID the user was shown when they approved an overwrite, set only when
+     *   this resumes [confirmOverwrite]. The tag actually found under the phone is checked against
+     *   it, so a confirmation can never be spent on a tag the user was never shown.
+     */
+    private suspend fun writeTag(tag: Tag, fields: MappedFields, confirmedUid: String?) {
+        val session = openSession(tag)
+        if (session == null) {
+            // Wrong *tag*, distinct from wrong *phone* — see DeviceCompatibility.
+            finish(WriteMessage.Info(NOT_MIFARE_CLASSIC_MESSAGE))
+            return
+        }
+
+        val uid = session.uid.toHexDump()
+        if (confirmedUid != null && uid != confirmedUid) {
+            session.close()
+            finish(
+                WriteMessage.Info(
+                    "This is not the tag you confirmed, so nothing was written. Hold the phone " +
+                        "against the tag you meant to write."
+                )
+            )
+            return
+        }
+
+        if (uid in _state.value.writtenTags) {
+            session.close()
+            finish(
+                WriteMessage.Info(
+                    "This tag was already written in this session. Present a different tag, or " +
+                        "tap Done if you are finished."
+                )
+            )
+            return
+        }
+
+        val overwrite = approvedOverwrites[uid] ?: OverwriteMode.Ask
+        when (val result = tagReaderWriter.write(session, fields, overwrite)) {
+            TagWriteResult.Success -> {
+                approvedOverwrites -= uid
+                _state.update { it.copy(writtenTags = it.writtenTags + uid) }
                 finish(
-                    WriteMessage.Info(
-                        "This tag was already written in this session. Present a different tag, or " +
-                            "tap Done if you are finished."
+                    WriteMessage.Written(
+                        uid = uid,
+                        spoolIdOnly = overwrite == OverwriteMode.SpoolIdOnly,
                     )
                 )
-                return@launch
             }
 
-            val overwrite = approvedOverwrites[uid] ?: OverwriteMode.Ask
-            when (val result = tagReaderWriter.write(session, fields, overwrite)) {
-                TagWriteResult.Success -> {
-                    approvedOverwrites -= uid
-                    _state.update { it.copy(writtenTags = it.writtenTags + uid) }
-                    finish(
-                        WriteMessage.Written(
-                            uid = uid,
-                            spoolIdOnly = overwrite == OverwriteMode.SpoolIdOnly,
-                        )
-                    )
-                }
-
-                is TagWriteResult.OverwriteRequired -> _state.update {
+            is TagWriteResult.OverwriteRequired -> {
+                promptedTag = PromptedTag(uid = uid, tag = tag, fields = fields)
+                _state.update {
                     it.copy(
                         busy = false,
                         overwritePrompt = OverwritePrompt(
@@ -147,53 +212,26 @@ class WriteViewModel(
                         ),
                     )
                 }
+            }
 
-                is TagWriteResult.Failed -> {
-                    // An ID-only approval was a decision to keep content that has turned out not to
-                    // be readable, so it cannot stand: dropping it puts the next tap back at the
-                    // prompt, which is where the failure message sends the user. Other failures keep
-                    // their approval, since for those tapping again *is* the recovery.
-                    if (result.failure is TagFailure.ExistingContentUnreadable) {
-                        approvedOverwrites -= uid
-                    }
-                    finish(
-                        WriteMessage.Failed(
-                            text = result.failure.userMessage(),
-                            retryable = result.failure.retryable,
-                            partiallyWritten = result.partiallyWritten,
-                        )
-                    )
+            is TagWriteResult.Failed -> {
+                // An ID-only approval was a decision to keep content that has turned out not to
+                // be readable, so it cannot stand: dropping it puts the next tap back at the
+                // prompt, which is where the failure message sends the user. Other failures keep
+                // their approval, since for those tapping again *is* the recovery.
+                if (result.failure is TagFailure.ExistingContentUnreadable) {
+                    approvedOverwrites -= uid
                 }
+                finish(
+                    WriteMessage.Failed(
+                        text = result.failure.userMessage(),
+                        retryable = result.failure.retryable,
+                        partiallyWritten = result.partiallyWritten,
+                    )
+                )
             }
         }
     }
-
-    /**
-     * Approves overwriting the prompted tag in [mode], which takes effect on the next tap of it.
-     *
-     * @param mode never [OverwriteMode.Ask] — the prompt's outcomes are the two ways of saying yes,
-     *   and saying no is [cancelOverwrite].
-     */
-    fun confirmOverwrite(mode: OverwriteMode) {
-        val prompt = _state.value.overwritePrompt ?: return
-        approvedOverwrites[prompt.uid] = mode
-        _state.update {
-            it.copy(
-                overwritePrompt = null,
-                // The tag connection can't be held open across a dialog, so overwriting needs a
-                // fresh tap. Say so explicitly rather than leaving the user waiting.
-                message = WriteMessage.Info(
-                    if (mode == OverwriteMode.SpoolIdOnly) {
-                        "Tap the same tag again to change its spool ID."
-                    } else {
-                        "Tap the same tag again to overwrite it."
-                    }
-                ),
-            )
-        }
-    }
-
-    fun cancelOverwrite() = _state.update { it.copy(overwritePrompt = null, message = null) }
 
     /**
      * Re-arms for another tag with the data already loaded — clearing the success message is what

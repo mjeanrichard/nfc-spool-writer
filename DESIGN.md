@@ -126,8 +126,12 @@ Settled choices that are not obvious from the code, with the reasoning that woul
 
 - `DEC-01` — **Serial number and reserve fields carry the Spoolman spool ID.** The serial holds it
   zero-padded to 6 digits; the reserve repeats it in its first 6 characters and zero-fills the remaining
-  8. This deviates from genuine tags, which hold a per-spool non-zero byte at payload offset 40 whose
-  meaning is unidentified.
+  8. The reserve copy is the one that functions — a printer resolves the spool from `[34, 40)` and
+  ignores the serial (TAG_FORMAT_SPEC.md §9) — so the serial copy is redundant, kept because it is what
+  community writers do and costs nothing. Reading is the mirror image: the decoded spool ID comes from
+  the reserve, and the serial is surfaced as raw bytes for diagnostics only. Zero-filling `[40, 48)` deviates from genuine tags, which hold
+  a per-spool non-zero byte at offset 40 whose meaning is unidentified; a printer has accepted a tag
+  without it.
 - `DEC-02` — **The batch-number and date-code fields are written as the constants `AB1` and
   `24027`.** With the supplier ID they concatenate to `AB1240276A21`, exactly the prefix every
   community implementation writes and printers are reported to accept. Neither is constant on
@@ -149,18 +153,23 @@ Settled choices that are not obvious from the code, with the reasoning that woul
 - `DEC-06` — **Spoolman needs no credentials.** Spoolman has no built-in authentication, so no token
   handling exists. An instance behind a reverse proxy with its own auth is out of scope; the app detects
   a 401/403 and says so explicitly, since that is the only thing such a response can mean.
-- `DEC-07` — **Spool ID 1 is written, not remapped.** Jacobean's firmware treats a serial of `1` as
-  "no ID" and skips the Spoolman lookup, so such a tag never auto-selects (TAG_FORMAT_SPEC.md §9).
+- `DEC-07` — **Spool ID 1 is written, not remapped.** Jacobean's firmware treats a reserve of `0` or
+  `1` as "no ID" and skips the Spoolman lookup, so such a tag never auto-selects (TAG_FORMAT_SPEC.md
+  §9). Only `1` is reachable, Spoolman never issuing `0`.
   Substituting another ID would put a value on the tag that does not exist in the user's Spoolman, which
   is worse than the quirk; blocking the write would be wrong for firmwares without it. So the mapping
   emits a warning on the confirm screen and writes the ID unchanged. Spoolman cannot renumber a spool —
   the ID is its database key, not an editable property — so the remedy is the user's to choose: add the
   spool again as a new record, or select the filament by hand at the printer.
-- `DEC-08` — **An ID-only overwrite preserves the reserve field, leaving it out of step with the
-  serial.** `DEC-01` has a full write put the spool ID in both, so a tag rewritten this way holds a
-  reserve naming the *previous* spool. That is deliberate: the mode exists for tags whose content this
-  app did not author, where the reserve holds vendor bytes of unknown purpose (a genuine tag was
-  observed carrying `0x76` and NULs there), and preserving unauthored bytes is the entire point.
-  Nothing reads the reserve — it is diagnostic output only — so the inconsistency costs nothing, while
-  refreshing it would destroy exactly what the user chose this mode to keep. The consequence to be
-  aware of: the reserve is not a second opinion about the spool ID, and no code may treat it as one.
+- `DEC-08` — **An ID-only overwrite rewrites the reserve's `[34, 40)` and nothing else**, leaving the
+  serial number holding the previous ID. `[34, 40)` is the only field a printer resolves a Spoolman
+  spool from (TAG_FORMAT_SPEC.md §9), so it is the only one that has to move; preserving it would
+  produce a tag that still points the printer at the *previous* spool while the app reported success.
+  Everything else stays, because the mode exists for tags whose content this app did not author and
+  preserving unauthored bytes is the entire point — the serial is a genuine tag's own data, nothing
+  reads it, and the unidentified bytes at offset 40 and after (`0x76` then NULs, observed) sit safely
+  past the end of the 40-character record any consumer parses.
+
+  The consequence to be aware of: on a tag rewritten this way the serial and the reserve name different
+  spools. `DEC-01`'s duplicate is not a second opinion about the spool ID, and no code may treat it as
+  one — the reserve is the answer.

@@ -36,6 +36,14 @@ object TagCodec {
     private val RESERVE = 34..<48
 
     /**
+     * `[34, 40)` — the reserve's leading 6 characters: the field a printer actually resolves a
+     * Spoolman spool from, and therefore the one field [decode] takes the spool ID from. The
+     * remaining `[40, 48)` is where genuine tags carry bytes of unidentified purpose, and is not part
+     * of any consumer's record (§9).
+     */
+    private val RESERVE_SPOOL_ID = 34..<40
+
+    /**
      * @return exactly [PAYLOAD_LENGTH] characters. [MappedFields] validates its own field widths, so
      *   the concatenation is already 48 characters before the second half is padded.
      */
@@ -61,19 +69,18 @@ object TagCodec {
     }
 
     /**
-     * Returns [payload] with the serial-number field replaced by [spoolId] and **every other byte
+     * Returns [payload] with [RESERVE_SPOOL_ID] set to [spoolId] and **every other byte
      * byte-identical** — the "change the Spoolman ID only" overwrite (REQUIREMENTS.md `REQ-16`).
      *
      * The point of this operation is a tag whose content this app did not author: a genuine Creality
-     * tag carries a real batch number, date code and reserve bytes, and re-pointing it at a different
-     * Spoolman spool should not cost the user that data. So nothing is re-derived here — not even the
-     * fields [encode] would write as constants.
+     * tag carries a real batch number, date code, serial number and reserve bytes, and re-pointing it
+     * at a different Spoolman spool should not cost the user any of that. So nothing is re-derived
+     * here — not even the fields [encode] would write as constants.
      *
-     * **The reserve is deliberately left alone**, even though [encode] derives it from the spool ID
-     * (DESIGN.md DEC-01). Preserving bytes of unknown purpose is the whole reason this path exists,
-     * and the serial number is the field the format actually defines as the ID; the reserve copy is
-     * this project's own convention. A tag rewritten this way therefore holds a reserve that does not
-     * match its serial, which is exactly what a genuine tag looks like.
+     * `[34, 40)` is the only field that has to move, because it is the only one a printer resolves the
+     * Spoolman spool from (§9). **The serial number is left alone** even though [encode] writes the ID
+     * there too: nothing reads it, it is a genuine tag's own data, and preserving unauthored bytes is
+     * the entire point of this path (DESIGN.md DEC-08).
      *
      * @throws TagDecodeException if [payload] is not something [decode] can read. Splicing a field
      *   into bytes we cannot parse would leave the tag as broken as it already is, only differently —
@@ -83,26 +90,35 @@ object TagCodec {
         // Trust boundary, same as decode: the bytes came off a physical tag and may hold anything.
         decode(payload)
         require(spoolId in 0..MappedFields.MAX_SPOOL_ID) {
-            "spoolId must fit in ${SERIAL_NUMBER.count()} digits, was $spoolId"
+            "spoolId must fit in ${RESERVE_SPOOL_ID.count()} digits, was $spoolId"
         }
         return payload.replaceRange(
-            SERIAL_NUMBER,
-            spoolId.toString().padStart(SERIAL_NUMBER.count(), '0'),
+            RESERVE_SPOOL_ID,
+            spoolId.toString().padStart(RESERVE_SPOOL_ID.count(), '0'),
         )
     }
 
     /**
-     * The reserve field duplicates the spool ID in its first 6 characters and zero-fills the
-     * remaining 8. **This is a project decision, not part of the format** (§9, DESIGN.md DEC-01).
+     * The reserve field repeats the spool ID in its first 6 characters and zero-fills the remaining 8.
      *
-     * A genuine Creality tag was observed holding `000000` then `0x76` then seven NULs here, so the
-     * field is neither all-zero nor pure ASCII in practice — meaning this write does overwrite
-     * something whose purpose is unknown. Flagged for hardware validation, not assumed safe.
+     * The repetition is a project decision (DESIGN.md DEC-01), but the placement is not: `[34, 40)` is
+     * the field a printer reads the Spoolman spool ID from, and the serial number is not consulted
+     * (§9). The trailing 8 are the project's own — a genuine Creality tag was observed holding `0x76`
+     * then seven NULs there, so this write does overwrite something whose purpose is unknown. A
+     * printer has been observed accepting a tag with those bytes zeroed.
      */
     private fun reserveFor(serial: String): String = serial.padEnd(RESERVE.count(), '0')
 
     /**
      * Parses a payload string back into structured fields.
+     *
+     * [MappedFields.spoolmanSpoolId] comes from [RESERVE_SPOOL_ID], never from the serial number.
+     * The two hold the same value on a tag this app wrote in full, but [withSpoolId] leaves the
+     * serial naming the previous spool, and a genuine Creality tag carries an unrelated serial with
+     * an empty reserve — so the reserve is the only field that answers "which spool is this?"
+     * (DESIGN.md DEC-08). The serial is surfaced verbatim as [DecodedPayload.serialNumber] and is
+     * not validated: nothing resolves a spool from it, so rejecting a tag over its content would
+     * only cost the user a readable tag.
      *
      * @throws TagDecodeException if the input is not a payload this format produced. Decoding is a
      *   trust boundary — the bytes come off a physical tag that may hold anything — so failures are
@@ -124,9 +140,9 @@ object TagCodec {
         val weight = WeightBucket.fromCode(lengthCode)
             ?: throw TagDecodeException("unrecognized weight-bucket code '$lengthCode'")
 
-        val serial = payload.substring(SERIAL_NUMBER)
-        val spoolId = serial.toIntOrNull()
-            ?: throw TagDecodeException("serial number must be digits, was '$serial'")
+        val reserveId = payload.substring(RESERVE_SPOOL_ID)
+        val spoolId = reserveId.takeIf { id -> id.all { it in '0'..'9' } }?.toInt()
+            ?: throw TagDecodeException("reserve spool ID must be digits, was '$reserveId'")
 
         val fields = try {
             MappedFields(
@@ -142,20 +158,32 @@ object TagCodec {
             throw TagDecodeException("payload fields failed validation: ${e.message}", e)
         }
 
-        return DecodedPayload(fields = fields, reserve = payload.substring(RESERVE))
+        return DecodedPayload(
+            fields = fields,
+            serialNumber = payload.substring(SERIAL_NUMBER),
+            reserve = payload.substring(RESERVE),
+        )
     }
 }
 
 /**
- * [MappedFields] plus the raw reserve bytes. The reserve is surfaced separately rather than folded
- * into the model because it is not a user-facing field — it is derived from the spool ID on write,
- * and on read it is only interesting for diagnosing what a tag actually contains (e.g. comparing
- * against the `000000` + `0x76` + NULs a genuine Creality tag was observed to hold).
+ * [MappedFields] plus the raw serial-number and reserve bytes. Both are surfaced separately rather
+ * than folded into the model because neither is a user-facing field — both are derived from the
+ * spool ID on write, and on read they are only interesting for diagnosing what a tag actually
+ * contains (e.g. comparing against the `000000` + `0x76` + NULs a genuine Creality tag was observed
+ * to hold, or seeing which spool a tag named before an ID-only overwrite).
  *
- * May contain non-printable bytes; escape it before display.
+ * [serialNumber] is `[28, 34)` exactly as the tag holds it. It is **not** a second opinion about the
+ * spool ID: [fields] carries the one the printer resolves, read from the reserve.
+ *
+ * [reserve] is all of `[34, 48)`, its leading 6 characters therefore repeating
+ * [MappedFields.spoolmanSpoolId].
+ *
+ * Both may contain non-printable bytes; escape them before display.
  */
 data class DecodedPayload(
     val fields: MappedFields,
+    val serialNumber: String,
     val reserve: String,
 )
 

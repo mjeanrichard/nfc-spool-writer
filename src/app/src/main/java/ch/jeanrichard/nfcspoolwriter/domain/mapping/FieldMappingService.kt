@@ -127,10 +127,11 @@ class FieldMappingService(
  */
 enum class MappingWarning {
     /**
-     * Jacobean's firmware treats a serial of `1` as "no ID" and skips the Spoolman lookup, so a tag
-     * written for this spool reads back fine but never auto-selects. `000001` is the value genuine
-     * Creality tags carry when they carry nothing meaningful (TAG_FORMAT_SPEC.md §9), which is the
-     * likely reason it is special-cased there.
+     * Jacobean's firmware resolves the Spoolman spool from the tag's *reserve* field and treats `0`
+     * and `1` there as "no ID", skipping the lookup — so a tag written for this spool reads back fine
+     * but never auto-selects. `000000` and `000001` are the values genuine Creality tags carry when
+     * they carry nothing meaningful (TAG_FORMAT_SPEC.md §9), which is the reason they are
+     * special-cased there. Spoolman never issues `0`, so only `1` is reachable here.
      *
      * The tag is still written faithfully — the ID is the user's data, and other firmwares do not
      * share the quirk — so this is a warning rather than a mapping failure (DESIGN.md DEC-07).

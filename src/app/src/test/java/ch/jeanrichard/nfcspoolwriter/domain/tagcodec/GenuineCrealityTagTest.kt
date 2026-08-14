@@ -49,7 +49,20 @@ class GenuineCrealityTagTest {
         assertEquals("01001", decoded.fields.filamentCatalogId)
         assertEquals("C12E1F", decoded.fields.colorRgb)
         assertEquals(WeightBucket.G500, decoded.fields.weight)
-        assertEquals(1, decoded.fields.spoolmanSpoolId)
+    }
+
+    /**
+     * This tag names no Spoolman spool: its reserve is `000000`, which the printer reads as "no ID"
+     * and resolves by material and colour instead (TAG_FORMAT_SPEC.md §9). The `000001` in the serial
+     * is the spool's own number and must not be reported as spool 1 — that is a different spool in
+     * anyone's Spoolman, and the printer would never select it from this tag.
+     */
+    @Test
+    fun `a genuine tag's serial is not mistaken for its spool id`() {
+        val decoded = TagCodec.decode(payload)
+
+        assertEquals(0, decoded.fields.spoolmanSpoolId)
+        assertEquals("000001", decoded.serialNumber)
     }
 
     /**
@@ -99,10 +112,12 @@ class GenuineCrealityTagTest {
     }
 
     /**
-     * Documents what this app would *change* if it rewrote this tag: the reserve gains the spool ID
-     * and the `0x76` byte is lost, and sector 2 gains space padding. Both are deviations from genuine
-     * content and both are flagged for hardware validation — this test pins the current behaviour so
-     * a change to it is deliberate rather than accidental.
+     * Documents what this app would *change* if it rewrote this tag with its own decoded fields: the
+     * `0x76` byte is lost, sector 2 gains space padding, and the serial is rewritten from the spool
+     * ID the reserve carries — here `000000`, so the tag's own `000001` does not survive a full
+     * rewrite. All three are deviations from genuine content and all are flagged for hardware
+     * validation; this test pins the current behaviour so a change to it is deliberate rather than
+     * accidental. Keeping the serial is exactly what the ID-only overwrite is for (DESIGN.md DEC-08).
      */
     @Test
     fun `rewriting a genuine tag replaces the reserve byte and pads sector 2`() {
@@ -110,8 +125,22 @@ class GenuineCrealityTagTest {
 
         val reEncoded = TagCodec.encode(decoded)
 
-        assertEquals("00000100000000", reEncoded.substring(34, 48))
+        assertEquals("000000", reEncoded.substring(28, 34))
+        assertEquals("00000000000000", reEncoded.substring(34, 48))
         assertEquals(" ".repeat(48), reEncoded.substring(48, 96))
+    }
+
+    /**
+     * The ID-only overwrite on a genuine tag — the flow this tag class exists for. The spool the user
+     * chose must be what a read then reports, while the tag's own serial and its `0x76` survive.
+     */
+    @Test
+    fun `an id-only overwrite of a genuine tag reads back as the new spool`() {
+        val decoded = TagCodec.decode(TagCodec.withSpoolId(payload, 42))
+
+        assertEquals(42, decoded.fields.spoolmanSpoolId)
+        assertEquals("000001", decoded.serialNumber)
+        assertEquals("000042v" + NUL.repeat(7), decoded.reserve)
     }
 
     /** A round-trip of this app's own output must still be lossless. */
