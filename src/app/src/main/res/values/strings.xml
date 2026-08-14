@@ -59,6 +59,12 @@
     <!-- Confirm -->
     <string name="confirm_fields_title">Will be written to the tag</string>
     <string name="confirm_notes_title">Assumptions made</string>
+    <string name="confirm_warnings_title">Will write, but read this first</string>
+    <string name="confirm_warning_ignored_spool_id">Jacobean\'s firmware ignores spool ID 1, treating it
+        as no ID at all: the printer will not pick this spool from Spoolman automatically. Spoolman
+        cannot renumber a spool, so to get an ID the printer accepts, add it again as a new record —
+        the usage history stays with the old one. Otherwise the tag works and you select the filament
+        by hand.</string>
     <string name="confirm_write">Write to tag</string>
     <string name="confirm_unmappable_title">Cannot write this spool</string>
     <string name="confirm_unmappable_hint">Set a material Creality recognises on this filament in

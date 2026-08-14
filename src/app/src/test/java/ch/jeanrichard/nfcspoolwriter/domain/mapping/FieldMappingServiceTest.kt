@@ -193,6 +193,26 @@ class FieldMappingServiceTest {
     }
 
     /**
+     * Spool ID 1 maps exactly — it is the printer that ignores it — so the warning must not turn into
+     * a note or a mapping failure.
+     */
+    @Test
+    fun `spool id 1 is written but warned about`() {
+        val result = mapped(spool(id = 1))
+
+        assertEquals(1, result.fields.spoolmanSpoolId)
+        assertEquals(emptyList<String>(), result.notes)
+        assertEquals(listOf(MappingWarning.IGNORED_SPOOL_ID), result.warnings)
+    }
+
+    @Test
+    fun `other spool ids produce no warning`() {
+        assertEquals(emptyList<MappingWarning>(), mapped(spool(id = 2)).warnings)
+        assertEquals(emptyList<MappingWarning>(), mapped(spool(id = 10)).warnings)
+        assertEquals(emptyList<MappingWarning>(), mapped(spool(id = 100_001)).warnings)
+    }
+
+    /**
      * The serial field is 6 digits, so a larger Spoolman ID cannot be represented. Currently this
      * throws from [MappedFields]; documented here so the failure is a known boundary rather than a
      * surprise crash in the UI. Surfacing it as a mapping error instead would be the better fix.

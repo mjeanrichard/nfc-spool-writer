@@ -11,6 +11,7 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -27,6 +28,9 @@ class SpoolmanRepositoryTest {
     private fun repository(
         baseUrl: String?,
         totalCount: Int? = null,
+        status: (offset: Int) -> HttpStatusCode = { HttpStatusCode.OK },
+        /** Which pages carry `x-total-count`; a proxy may strip it from some responses and not others. */
+        sendsTotalCount: (offset: Int) -> Boolean = { true },
         respondWith: (offset: Int) -> String,
     ): SpoolmanRepository {
         val settings = SettingsRepository(InMemoryPreferencesDataStore())
@@ -35,12 +39,12 @@ class SpoolmanRepositoryTest {
             val offset = request.url.parameters["offset"]?.toIntOrNull() ?: 0
             respond(
                 content = respondWith(offset),
-                status = HttpStatusCode.OK,
+                status = status(offset),
                 headers = headersOf(
                     // null models a proxy stripping the header, so it is omitted entirely.
                     *listOfNotNull(
                         HttpHeaders.ContentType to listOf(ContentType.Application.Json.toString()),
-                        totalCount?.let {
+                        totalCount?.takeIf { sendsTotalCount(offset) }?.let {
                             SpoolmanApiClient.TOTAL_COUNT_HEADER to listOf(it.toString())
                         },
                     ).toTypedArray()
@@ -127,6 +131,98 @@ class SpoolmanRepositoryTest {
         assertEquals(2, requests.size)
     }
 
+    /**
+     * A dataset that is an exact multiple of the page size is the case where the reported total earns
+     * its keep: the last full page is also the last page, and only the total says so.
+     */
+    @Test
+    fun `loadAllSpools stops on the reported total without an extra request`() = runTest {
+        val total = SpoolmanRepository.PAGE_LIMIT * 2
+        val repo = repository("http://h", totalCount = total) { offset ->
+            val remaining = (total - offset).coerceAtLeast(0)
+            (1..minOf(SpoolmanRepository.PAGE_LIMIT, remaining))
+                .joinToString(",", "[", "]") { spoolJson(offset + it) }
+        }
+
+        val page = (repo.loadAllSpools() as SpoolmanResult.Success).value
+
+        assertEquals(total, page.spools.size)
+        assertEquals(2, requests.size)
+    }
+
+    /**
+     * The wasted request is not merely wasted: a server that rejects an out-of-range offset would turn
+     * it into a failure for the whole load, having already returned every spool successfully.
+     */
+    @Test
+    fun `loadAllSpools never asks for a page past the reported total`() = runTest {
+        val total = SpoolmanRepository.PAGE_LIMIT * 2
+        val repo = repository(
+            "http://h",
+            totalCount = total,
+            status = { offset ->
+                if (offset >= total) HttpStatusCode.BadRequest else HttpStatusCode.OK
+            },
+        ) { offset ->
+            if (offset >= total) """{"detail":"offset out of range"}"""
+            else (1..SpoolmanRepository.PAGE_LIMIT)
+                .joinToString(",", "[", "]") { spoolJson(offset + it) }
+        }
+
+        val page = (repo.loadAllSpools() as SpoolmanResult.Success).value
+
+        assertEquals(total, page.spools.size)
+        assertEquals(2, requests.size)
+    }
+
+    /**
+     * A total, once reported, survives a later page that omits the header — otherwise the stopping
+     * condition is lost on the very page that needs it, and the walk runs off the end of the list.
+     */
+    @Test
+    fun `loadAllSpools keeps a total reported by an earlier page`() = runTest {
+        val total = SpoolmanRepository.PAGE_LIMIT * 2
+        val repo = repository(
+            "http://h",
+            totalCount = total,
+            sendsTotalCount = { offset -> offset == 0 },
+            status = { offset ->
+                if (offset >= total) HttpStatusCode.BadRequest else HttpStatusCode.OK
+            },
+        ) { offset ->
+            if (offset >= total) """{"detail":"offset out of range"}"""
+            else (1..SpoolmanRepository.PAGE_LIMIT)
+                .joinToString(",", "[", "]") { spoolJson(offset + it) }
+        }
+
+        val page = (repo.loadAllSpools() as SpoolmanResult.Success).value
+
+        assertEquals(total, page.spools.size)
+        assertEquals(total, page.totalCount)
+        assertEquals(2, requests.size)
+    }
+
+    /**
+     * A total smaller than what has already arrived is self-contradictory, so it cannot be the signal
+     * that the list is complete — believing it would drop every spool the header failed to count.
+     */
+    @Test
+    fun `loadAllSpools keeps paging when the reported total is too small`() = runTest {
+        val available = SpoolmanRepository.PAGE_LIMIT + 3
+        val repo = repository("http://h", totalCount = 5) { offset ->
+            val remaining = (available - offset).coerceAtLeast(0)
+            (1..minOf(SpoolmanRepository.PAGE_LIMIT, remaining))
+                .joinToString(",", "[", "]") { spoolJson(offset + it) }
+        }
+
+        val page = (repo.loadAllSpools() as SpoolmanResult.Success).value
+
+        assertEquals(available, page.spools.size)
+        // Never fewer than were actually handed over, whatever the header claimed.
+        assertEquals(available, page.totalCount)
+        assertEquals(2, requests.size)
+    }
+
     /** A server that keeps promising more rows than it delivers must not loop forever. */
     @Test
     fun `loadAllSpools stops at an empty page even if the total disagrees`() = runTest {
@@ -168,9 +264,9 @@ class SpoolmanRepositoryTest {
         val page = (repo.loadAllSpools() as SpoolmanResult.Success).value
 
         assertEquals(total, page.spools.size)
-        // The real total is unknowable without the header; reporting the collected size keeps the
-        // UI from claiming the list was cut short.
-        assertEquals(total, page.totalCount)
+        // The real total is unknowable without the header, and saying so is what stops the UI from
+        // claiming the list was cut short on the strength of a number the repository invented.
+        assertNull(page.totalCount)
         assertEquals(2, requests.size)
     }
 

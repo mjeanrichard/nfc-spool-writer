@@ -313,4 +313,13 @@ class SpoolListViewModelTest {
 
         assertEquals(false, vm.state.value.truncated)
     }
+
+    /** With no server total there is nothing to compare against, so truncation must not be claimed. */
+    @Test
+    fun `an unknown total is shown as the number of spools loaded`() = runTest {
+        val vm = spoolList(fakeSpoolmanRepository(spools, totalCount = null))
+
+        assertEquals(false, vm.state.value.truncated)
+        assertEquals(spools.size, vm.state.value.totalCount)
+    }
 }

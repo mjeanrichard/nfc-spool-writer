@@ -130,9 +130,8 @@ Settled choices that are not obvious from the code, with the reasoning that woul
   `24027`.** With the supplier ID they concatenate to `AB1240276A21`, exactly the prefix every
   community implementation writes and printers are reported to accept. Neither is constant on
   genuine tags, which carry varying values, so both must be **read** permissively and preserved —
-  only the write side pins them. (Earlier revisions modelled these 8 characters as a `[0,5)` "lead
-  code" `AB124` plus the date's tail; the current partition is documented on `MappedFields`, and the
-  bytes written are unchanged.)
+  only the write side pins them. The field boundaries these constants fill are specified in
+  TAG_FORMAT_SPEC.md §9 and enforced on `MappedFields`.
 - `DEC-03` — **Every spool is written with Creality's supplier ID (`6A21`)**, whoever made the
   filament. It is the only value observed on genuine tags and the only one with evidence of being
   accepted; no registered ID exists for anyone else; and whether the field affects printer behaviour is
@@ -148,3 +147,10 @@ Settled choices that are not obvious from the code, with the reasoning that woul
 - `DEC-06` — **Spoolman needs no credentials.** Spoolman has no built-in authentication, so no token
   handling exists. An instance behind a reverse proxy with its own auth is out of scope; the app detects
   a 401/403 and says so explicitly, since that is the only thing such a response can mean.
+- `DEC-07` — **Spool ID 1 is written, not remapped.** Jacobean's firmware treats a serial of `1` as
+  "no ID" and skips the Spoolman lookup, so such a tag never auto-selects (TAG_FORMAT_SPEC.md §9).
+  Substituting another ID would put a value on the tag that does not exist in the user's Spoolman, which
+  is worse than the quirk; blocking the write would be wrong for firmwares without it. So the mapping
+  emits a warning on the confirm screen and writes the ID unchanged. Spoolman cannot renumber a spool —
+  the ID is its database key, not an editable property — so the remedy is the user's to choose: add the
+  spool again as a new record, or select the filament by hand at the printer.

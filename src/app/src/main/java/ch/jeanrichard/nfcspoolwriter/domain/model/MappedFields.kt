@@ -9,12 +9,11 @@ package ch.jeanrichard.nfcspoolwriter.domain.model
  * the first place — by the time a value reaches the NFC layer it is too late to discover that the
  * colour has five hex digits.
  *
- * **Field partition note.** The first 17 characters were originally modelled as
- * `lead(5) | vendor(4) | batch(2) | "1" + material(5)`. They are now modelled as
- * `batch(3) | date(5) | supplier(4) | material(5)` per better format information (2026-08-04). The
- * two partitions divide the *same* 17 characters, so the defaults below reproduce byte-identical
- * output to the earlier model — see `TagCodecTest`. The re-partition changes what can vary
- * independently and what things are called, not what gets written.
+ * **Field partition.** The first 17 characters divide as
+ * `batch(3) | date(5) | supplier(4) | material(5)`, the offsets each property below documents itself
+ * against. Where the boundaries fall decides what can vary independently, so it is worth stating
+ * explicitly: the widely quoted vendor code `0276` straddles two of these fields and is therefore not
+ * a field at all (TAG_FORMAT_SPEC.md §9, and [CREALITY_SUPPLIER_ID]).
  */
 data class MappedFields(
     /**
@@ -70,8 +69,8 @@ data class MappedFields(
         /**
          * The three defaults below concatenate to `AB1` + `24027` + `6A21` = `AB1240276A21`, which is
          * exactly the prefix every community implementation writes and that printers are reported to
-         * accept. Keeping them as the defaults means this app's output is unchanged by the
-         * re-partition, and any deviation from a proven-accepted byte sequence is deliberate.
+         * accept. They are defaults rather than computed values so that departing from a
+         * proven-accepted byte sequence takes a deliberate act.
          */
         const val DEFAULT_BATCH_NUMBER = "AB1"
 

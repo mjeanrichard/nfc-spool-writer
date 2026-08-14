@@ -129,7 +129,7 @@ class GenuineCrealityTagTest {
 
     /**
      * This app writes the community-proven constants rather than copying a genuine tag's batch/date or
-     * computing a date it cannot verify. Byte-identical to what the pre-re-partition model produced.
+     * computing a date it cannot verify.
      */
     @Test
     fun `our writes use the proven default batch date and supplier`() {

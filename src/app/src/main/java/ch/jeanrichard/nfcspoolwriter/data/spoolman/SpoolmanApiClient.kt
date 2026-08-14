@@ -70,12 +70,14 @@ class SpoolmanApiClient(private val httpClient: HttpClient) {
         limit?.let { parameters.append("limit", it.toString()) }
         offset?.let { parameters.append("offset", it.toString()) }
     }) { response ->
-        val spools = response.body<List<SpoolDto>>().map { it.toDomain() }
         SpoolPage(
-            spools = spools,
-            // Spoolman reports the unpaginated total here; fall back to the page size if a proxy
-            // strips the header, which only costs us the ability to show "n of m".
-            totalCount = response.headers[TOTAL_COUNT_HEADER]?.toIntOrNull() ?: spools.size,
+            spools = response.body<List<SpoolDto>>().map { it.toDomain() },
+            // Left null when the header is absent, unparseable or negative, rather than substituted
+            // with the page size: a caller that cannot tell a reported total from a guessed one has to
+            // ignore it entirely, which is how pagination loses its stopping condition. A negative
+            // count is as much a non-answer as no header at all, and saying so here keeps every caller
+            // from having to re-check the sign.
+            totalCount = response.headers[TOTAL_COUNT_HEADER]?.toIntOrNull()?.takeIf { it >= 0 },
         )
     }
 
@@ -172,10 +174,16 @@ class SpoolmanApiClient(private val httpClient: HttpClient) {
     }
 }
 
-/** @param totalCount total matching spools on the server, which may exceed [spools] when paging. */
+/**
+ * @param totalCount total matching spools on the server, which may exceed [spools] when paging, or
+ *   null when the server did not report one — Spoolman always sends `x-total-count`, but a reverse
+ *   proxy can strip it. Null means *unknown*, never zero or "same as this page": a caller that needs a
+ *   number must supply its own fallback, and a caller paging through the list must fall back to
+ *   treating a short page as the end.
+ */
 data class SpoolPage(
     val spools: List<Spool>,
-    val totalCount: Int,
+    val totalCount: Int?,
 )
 
 @Serializable

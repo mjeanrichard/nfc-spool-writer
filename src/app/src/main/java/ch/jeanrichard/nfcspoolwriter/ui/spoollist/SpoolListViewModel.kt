@@ -62,14 +62,17 @@ class SpoolListViewModel(
         fetchJob = viewModelScope.launch {
             when (val result = spoolmanRepository.loadAllSpools()) {
                 is SpoolmanResult.Success -> _state.update {
+                    val spools = result.value.spools
+                    val serverTotal = result.value.totalCount
                     it.copy(
                         loading = false,
                         refreshing = false,
-                        spools = result.value.spools,
+                        spools = spools,
                         // The repository caps how much it will collect; tell the user rather than
-                        // silently showing a partial list.
-                        truncated = result.value.totalCount > result.value.spools.size,
-                        totalCount = result.value.totalCount,
+                        // silently showing a partial list. Without a server total there is nothing to
+                        // compare against, so claiming truncation would be a guess.
+                        truncated = serverTotal != null && serverTotal > spools.size,
+                        totalCount = serverTotal ?: spools.size,
                     )
                 }
 

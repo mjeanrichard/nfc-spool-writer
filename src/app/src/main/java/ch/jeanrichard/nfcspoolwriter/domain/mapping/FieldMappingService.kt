@@ -41,6 +41,9 @@ class FieldMappingService(
             ),
             materialMatch = materialMatch,
             notes = notes,
+            warnings = buildList {
+                if (spool.id == IGNORED_SPOOL_ID) add(MappingWarning.IGNORED_SPOOL_ID)
+            },
         )
     }
 
@@ -108,16 +111,45 @@ class FieldMappingService(
 
         /** Neutral mid-grey: obviously a placeholder on the printer's swatch, unlike black or white. */
         const val DEFAULT_COLOUR = "808080"
+
+        /** The one spool ID that survives the write but not the printer — see [MappingWarning]. */
+        const val IGNORED_SPOOL_ID = 1
     }
+}
+
+/**
+ * A value that maps exactly but will still behave badly at the printer.
+ *
+ * An identifier rather than a message, because the text is user-facing: it lives in `strings.xml` where
+ * it can be translated, and the UI resolves it. [MappingResult.Mapped.notes] are plain strings by
+ * contrast — each one reports a specific value this service substituted, so there is no fixed sentence
+ * to translate.
+ */
+enum class MappingWarning {
+    /**
+     * Jacobean's firmware treats a serial of `1` as "no ID" and skips the Spoolman lookup, so a tag
+     * written for this spool reads back fine but never auto-selects. `000001` is the value genuine
+     * Creality tags carry when they carry nothing meaningful (TAG_FORMAT_SPEC.md §9), which is the
+     * likely reason it is special-cased there.
+     *
+     * The tag is still written faithfully — the ID is the user's data, and other firmwares do not
+     * share the quirk — so this is a warning rather than a mapping failure (DESIGN.md DEC-07).
+     */
+    IGNORED_SPOOL_ID,
 }
 
 sealed interface MappingResult {
 
-    /** @param notes approximations made, for display on the confirm screen. */
+    /**
+     * @param notes approximations made, for display on the confirm screen.
+     * @param warnings values written as-is that the printer will nonetheless mishandle. Distinct from
+     *   [notes], which describe values this service changed.
+     */
     data class Mapped(
         val fields: MappedFields,
         val materialMatch: MaterialMatch,
         val notes: List<String>,
+        val warnings: List<MappingWarning> = emptyList(),
     ) : MappingResult
 
     /**
