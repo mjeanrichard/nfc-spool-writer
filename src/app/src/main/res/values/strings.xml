@@ -114,8 +114,8 @@
         again fully before using the spool.</string>
     <string name="write_overwrite_title">Tag already has data</string>
     <string name="write_overwrite_body">This tag already contains: %1$s</string>
-    <string name="write_overwrite_retap">After confirming, tap the same tag again — the connection
-        cannot be held open while this prompt is showing.</string>
+    <string name="write_overwrite_hold">Keep the phone against the tag — it is written as soon as
+        you confirm. If it has already moved away, tap it again afterwards.</string>
     <string name="write_overwrite_confirm">Overwrite everything</string>
     <string name="write_overwrite_id_only_body">You can instead leave this tag exactly as it is and
         change only its spool ID to %1$d. That keeps the material, colour and weight already on the

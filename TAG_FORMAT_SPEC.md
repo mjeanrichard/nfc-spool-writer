@@ -201,8 +201,9 @@ Offsets are 0-indexed, end-exclusive (`[start, end)`).
 | `[12, 17)` | 5 | Material ID | 5 ASCII digits selecting a material profile (temperatures, cooling) from the printer's material database. `01001` = Creality "Hyper PLA"; `00001` = Generic PLA. There is no structural prefix digit. |
 | `[17, 24)` | 7 | Colour | The literal digit `0`, then 6 hex digits `RRGGBB`. Treat as case-insensitive hex. |
 | `[24, 28)` | 4 | Filament length code | 4 ASCII digits from a fixed set of weight buckets (below) — not grams, not millimetres. |
-| `[28, 34)` | 6 | Serial number | 6 ASCII digits, zero-padded. Not unique in practice: genuine tags from different spools have both been observed carrying `000001`. **This project writes the Spoolman spool ID here.** The value `1` is special-cased by at least one firmware — see below. |
-| `[34, 48)` | 14 | Reserve | 14 bytes. **Not all zeros on genuine tags** — see below. **This project writes the Spoolman spool ID zero-padded to 6 digits, then 8 zeros** (spool `42` → `00004200000000`). Readers must surface this field verbatim, including non-printable bytes. |
+| `[28, 34)` | 6 | Serial number | 6 ASCII digits, zero-padded. Not unique in practice: genuine tags from different spools have both been observed carrying `000001`. **No known firmware reads this field** — see below. This project writes the Spoolman spool ID here anyway, mirroring the reserve. |
+| `[34, 40)` | 6 | Reserve — spool ID | 6 ASCII digits, zero-padded. **This is the field a printer resolves a Spoolman spool from**, and it is the only field this project relies on being read. `000000` and `000001` mean "no ID" — see below. Genuine tags carry `000000`. |
+| `[40, 48)` | 8 | Reserve — trailing | **Not all zeros on genuine tags** — see below. Outside the 40-character record consumers parse, so nothing is known to read it. This project writes 8 zeros. Readers must surface it verbatim, including non-printable bytes. |
 | `[48, 96)` | 48 | Padding | No known field. See §7 — write spaces, ignore on read. |
 
 ### Weight-bucket codes (`[24, 28)`)
@@ -221,16 +222,34 @@ a bucket. They encode the spool's **nominal full weight**, not remaining filamen
 These are not gram values; they appear to be nominal filament length in metres for 1.75 mm filament at
 typical PLA density, but the derivation is irrelevant — treat them as five opaque lookup codes.
 
-### Serial number `1` is ignored by Jacobean's firmware
+### The reserve is what carries the spool ID, not the serial
 
-Jacobean's firmware ignores a serial of `1`, treating it as "no ID": a tag carrying it reads correctly,
-but the printer does not look the spool up in Spoolman or select it automatically. This is consistent
-with `000001` being what genuine Creality tags carry when the serial means nothing (above), so the
-firmware cannot distinguish a real spool ID 1 from a placeholder.
+`[34, 40)` — not the serial number — is the field a printer looks a Spoolman spool up by.
+[Jacobean's K2 Plus firmware documents this explicitly](https://jacob10383.github.io/k2-plus-custom-firmware/rfid/):
+a tag is resolved either by putting the Spoolman spool ID in `reserve`, in which case the material and
+colour fields on the tag are ignored entirely, or by leaving `reserve` at `000000` and having the
+printer match the material/colour fields against its own catalog. If `reserve` holds an integer greater
+than `1`, the Spoolman path wins even when the material field is also set. The serial number takes no
+part in resolution.
+
+This project writes the ID into **both** fields (DESIGN.md `DEC-01`). The reserve copy is the one that
+functions; the serial copy is a project convention, and no code may treat it as a second opinion about
+which spool a tag names.
+
+**`0` and `1` mean "no ID".** The firmware treats both reserve values as absent and skips the Spoolman
+lookup: such a tag reads correctly, but the printer neither looks the spool up nor selects it
+automatically. That is consistent with `000000` being what genuine Creality tags carry in the reserve
+and `000001` what they carry in the serial when neither means anything (above) — the firmware cannot
+distinguish a real spool ID 1 from a placeholder.
 
 Writing it is still correct — the ID is the user's data, and other firmwares do not share the quirk — so
 this project writes the value and warns on the confirm screen instead of remapping it. Only the value `1`
-is affected; `000001` as written by this project *is* that value, zero-padded.
+is reachable, Spoolman never issuing `0`.
+
+This also fixes what the "change the spool ID only" overwrite (REQUIREMENTS.md `REQ-16`) touches:
+`[34, 40)` and nothing else. Rewriting the serial too would gain nothing, since nothing reads it, and
+would cost the tag a field of its own; leaving `[34, 40)` alone would leave the tag naming the previous
+spool to the printer.
 
 ### The date code `[3, 8)`
 
@@ -254,7 +273,9 @@ date**: if its `[3, 8)` differs in the last three characters, `[5, 9)` cannot be
 
 ### Reserve byte 40
 
-Genuine tags hold six ASCII zeros, then **one non-zero byte at offset 40**, then seven `0x00`. Observed:
+Genuine tags hold `000000` in the reserve's spool-ID half, then **one non-zero byte at offset 40**, then
+seven `0x00` — so everything of unknown purpose sits in `[40, 48)`, past the end of the 40-character
+record a printer parses. Observed:
 
 | Tag UID | payload `[0,40)` | byte 40 |
 |---|---|---|
@@ -293,7 +314,8 @@ Spoolman spool ID `42`, material `01001`, colour `#FF0000`, 1000 g.
 | Colour | `[17,24)` | `0` + `FF0000` |
 | Length code | `[24,28)` | `0330` |
 | Serial number | `[28,34)` | `000042` |
-| Reserve | `[34,48)` | `00004200000000` |
+| Reserve — spool ID | `[34,40)` | `000042` |
+| Reserve — trailing | `[40,48)` | `00000000` |
 | Padding | `[48,96)` | 48 spaces |
 
 **Part 1** (48 chars → sector 1, encrypted):
@@ -391,10 +413,17 @@ the following simultaneously differing from a genuine tag — reserve carrying a
 is not all-NUL. That accepted tag carried `k2` in sector 2, where this project writes only spaces — the
 one byte difference between the confirmed sequence and what ships.
 
+**Documented by a third-party firmware, not tested here:** that the spool ID is resolved from the
+reserve field and the serial ignored, that reserve `0`/`1` mean "no ID", and that a `reserve` greater
+than `1` overrides the material/colour fields — all from
+[Jacobean's K2 Plus firmware docs](https://jacob10383.github.io/k2-plus-custom-firmware/rfid/) (§9).
+Stock Creality firmware may differ; writing both fields costs nothing and covers either.
+
 **Not confirmed:**
 
 - That the printer *displays* every field correctly. Only acceptance is established.
-- Whether the printer writes anything back to a tag it has used.
+- Whether the printer writes anything back to a tag it has used. Jacobean's firmware documents that it
+  does not; stock firmware is untested.
 - Whether the printer reads either of a spool's two tags.
 - Weight buckets other than `0165`; those four are taken on trust from the reverse-engineered table.
 - The `[8, 12)` supplier-field boundary, and the `YYMDD` date encoding (§9).

@@ -115,6 +115,7 @@ class TagHarnessViewModel(
             appendLine("  material  ${result.payload.fields.filamentCatalogId}")
             appendLine("  colour    #${result.payload.fields.colorRgb}")
             appendLine("  weight    ${result.payload.fields.weight.grams} g")
+            appendLine("  serial    ${result.payload.serialNumber}")
             append("  reserve   ${result.payload.reserve}")
         }
 
@@ -131,7 +132,7 @@ class TagHarnessViewModel(
             "ALREADY WRITTEN — nothing was written. Existing content:\n" +
                 describe(result.existing).prependIndent("  ") +
                 "\n\nSwitch to 'Write (overwrite)' to replace it, or 'Write (ID only)' to keep it " +
-                "and change just the serial number, then tap again."
+                "and change just the spool ID, then tap again."
 
         is TagWriteResult.Failed -> buildString {
             append("FAILED — ${describe(result.failure)}")

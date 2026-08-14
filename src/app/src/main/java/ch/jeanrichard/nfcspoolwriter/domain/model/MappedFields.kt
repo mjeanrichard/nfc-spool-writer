@@ -38,7 +38,10 @@ data class MappedFields(
     /** 6 hex digits `RRGGBB`, without the structural `0` prefix the codec adds. Normalized upper. */
     val colorRgb: String,
     val weight: WeightBucket,
-    /** Spoolman's spool ID. Written to both the serial-number and reserve fields (§9). */
+    /**
+     * Spoolman's spool ID. Written to both the serial-number field and the reserve's leading 6
+     * characters (§9) — the latter is the one a printer resolves the spool from.
+     */
     val spoolmanSpoolId: Int,
 ) {
     init {

@@ -181,11 +181,11 @@ class MifareTagReaderWriterTest {
 
     /**
      * The point of the mode: a tag carrying data this app did not author keeps every byte of it, and
-     * only the field that names the Spoolman spool moves. The fields asserted here are the ones the
-     * new spool would otherwise have replaced.
+     * only the field a printer resolves the spool from moves. The fields asserted here are the ones
+     * the new spool would otherwise have replaced.
      */
     @Test
-    fun `spool id only replaces the serial and keeps every other field`() = runTest {
+    fun `spool id only replaces the reserve id and keeps every other field`() = runTest {
         val existing = TagCodec.encode(
             fields.copy(
                 filamentCatalogId = "02002",
@@ -202,7 +202,7 @@ class MifareTagReaderWriterTest {
 
         assertEquals(TagWriteResult.Success, result)
         val reread = (readerWriter.read(session.reopened()) as TagReadResult.Written).payload
-        assertEquals(fields.spoolmanSpoolId, reread.fields.spoolmanSpoolId)
+        assertEquals("000042", reread.reserve.take(6))
         assertEquals("02002", reread.fields.filamentCatalogId)
         assertEquals("0000FF", reread.fields.colorRgb)
         assertEquals(WeightBucket.G500, reread.fields.weight)
@@ -211,24 +211,48 @@ class MifareTagReaderWriterTest {
     }
 
     /**
-     * The reserve is left alone even though a full write derives it from the spool ID (DESIGN.md
-     * DEC-01): on a genuine tag it holds vendor bytes whose purpose is unknown, and preserving those
-     * is the whole reason this mode exists.
+     * A tag written this way names two spools — the new one in the reserve, the previous one in the
+     * serial — and the app must report the one the printer acts on, or a read of the tag it just
+     * wrote would contradict the success message.
      */
     @Test
-    fun `spool id only leaves the reserve field untouched`() = runTest {
+    fun `an id-only tag reads back as the new spool, not the serial it kept`() = runTest {
         val existing = TagCodec.encode(fields.copy(spoolmanSpoolId = 7))
         val session = FakeMifareSession.written(existing)
 
         readerWriter.write(session, fields, overwrite = OverwriteMode.SpoolIdOnly)
 
-        val reread = readerWriter.read(session.reopened()) as TagReadResult.Written
-        assertEquals(TagCodec.decode(existing).reserve, reread.payload.reserve)
+        val reread = (readerWriter.read(session.reopened()) as TagReadResult.Written).payload
+        assertEquals(42, reread.fields.spoolmanSpoolId)
+        assertEquals("000007", reread.serialNumber)
     }
 
-    /** Everything outside the serial-number field is byte-identical, padding and all. */
+    /**
+     * The reserve's leading 6 characters are what a printer resolves the Spoolman spool from
+     * (TAG_FORMAT_SPEC.md §9), so they must follow the new spool — a tag that kept them would go on
+     * pointing the printer at the previous one. The trailing 8 are preserved: that is where a genuine
+     * tag's unidentified bytes live (DESIGN.md DEC-08).
+     */
     @Test
-    fun `spool id only changes exactly six characters of the payload`() = runTest {
+    fun `spool id only rewrites the reserve id and preserves its unidentified bytes`() = runTest {
+        // What a genuine tag carries after the ID: one non-zero byte, then NULs.
+        val unidentified = "v" + "\u0000".repeat(7)
+        val existing = TagCodec.encode(fields.copy(spoolmanSpoolId = 7))
+            .replaceRange(40, 48, unidentified)
+        val session = FakeMifareSession.written(existing)
+
+        readerWriter.write(session, fields, overwrite = OverwriteMode.SpoolIdOnly)
+
+        val reread = readerWriter.read(session.reopened()) as TagReadResult.Written
+        assertEquals("000042" + unidentified, reread.payload.reserve)
+    }
+
+    /**
+     * Everything outside the reserve's ID half is byte-identical, serial number and padding included.
+     * Spool `7` → `42` differs only in its last two digits, so only the tail of `[34,40)` changes.
+     */
+    @Test
+    fun `spool id only changes exactly the reserve id`() = runTest {
         val existing = TagCodec.encode(fields.copy(spoolmanSpoolId = 7))
         val session = FakeMifareSession.written(existing)
 
@@ -237,7 +261,7 @@ class MifareTagReaderWriterTest {
         val written = session.payloadText()
         assertEquals(existing.length, written.length)
         val changed = existing.indices.filter { existing[it] != written[it] }
-        assertEquals(listOf(32, 33), changed)
+        assertEquals(listOf(38, 39), changed)
     }
 
     /** Nothing to preserve on a blank tag, so the mode degrades to a full write rather than failing. */

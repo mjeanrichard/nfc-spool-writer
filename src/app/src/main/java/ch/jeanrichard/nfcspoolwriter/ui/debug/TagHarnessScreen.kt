@@ -151,7 +151,7 @@ private fun ActionChips(selected: HarnessAction, onSelect: (HarnessAction) -> Un
             )
 
             HarnessAction.WriteSpoolIdOnly -> ActionWarning(
-                "Will keep existing tag content byte for byte and change only the serial-number " +
+                "Will keep existing tag content byte for byte and change only the reserve's spool-ID " +
                     "field, without asking. Fails on a tag whose content does not decode."
             )
 

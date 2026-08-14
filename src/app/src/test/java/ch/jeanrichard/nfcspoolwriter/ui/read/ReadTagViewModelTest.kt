@@ -227,6 +227,22 @@ class ReadTagViewModelTest {
         assertEquals("PolyTerra PLA Blue", lookup.spool.filament.name)
     }
 
+    /**
+     * On a tag written with the ID-only overwrite the serial still names the previous spool, so a
+     * read that took the ID from there would show the user someone else's filament — and the printer
+     * would load the reserve's spool regardless (DESIGN.md DEC-08).
+     */
+    @Test
+    fun `a tag whose serial names another spool is read and looked up by its reserve`() = runTest {
+        val diverged = TagCodec.withSpoolId(TagCodec.encode(fields(spoolId = 7)), 42)
+        val vm = viewModel(FakeMifareSession.written(diverged, uid), spools = listOf(testSpool()))
+
+        vm.onTagDiscovered(tag)
+
+        assertEquals(42, (vm.state.value.outcome as ReadOutcome.Written).tag.spoolId)
+        assertEquals(42, (vm.state.value.lookup as SpoolLookup.Found).spool.id)
+    }
+
     @Test
     fun `an unreachable server leaves the tag's own fields readable`() = runTest {
         val vm = viewModel(

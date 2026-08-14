@@ -148,11 +148,95 @@ class TagCodecTest {
         assertEquals(true, error.message!!.contains("9999"))
     }
 
+    /**
+     * Nothing resolves a spool from the serial (TAG_FORMAT_SPEC.md §9), so rejecting a tag over what
+     * it holds there would cost the user a readable tag for no gain. It is preserved verbatim
+     * instead, exactly like the batch number and date code.
+     */
     @Test
-    fun `rejects a non-numeric serial number`() {
+    fun `accepts and preserves a non-numeric serial number`() {
         val tampered = TagCodec.encode(specExample).replaceRange(28, 34, "AB!@#$")
 
+        val decoded = TagCodec.decode(tampered)
+
+        assertEquals("AB!@#$", decoded.serialNumber)
+        assertEquals(42, decoded.fields.spoolmanSpoolId)
+    }
+
+    /** The reserve is the one field the app relies on reading, so it is the one field guarded. */
+    @Test
+    fun `rejects a non-numeric reserve spool id`() {
+        val tampered = TagCodec.encode(specExample).replaceRange(34, 40, "AB!@#$")
+
+        val error = assertThrows(TagDecodeException::class.java) { TagCodec.decode(tampered) }
+
+        assertEquals(true, error.message!!.contains("reserve spool ID"))
+    }
+
+    /** `toInt` alone would accept a sign; six digits is what the field is (§9). */
+    @Test
+    fun `rejects a signed reserve spool id`() {
+        val tampered = TagCodec.encode(specExample).replaceRange(34, 40, "-00042")
+
         assertThrows(TagDecodeException::class.java) { TagCodec.decode(tampered) }
+    }
+
+    // --- Serial and reserve naming different spools --------------------------------------------
+
+    /**
+     * The divergence [TagCodec.withSpoolId] creates on purpose: the serial still names the previous
+     * spool. `[34, 40)` is what a printer resolves from and what the app must report, or every read,
+     * lookup and overwrite summary would name a spool the printer never selects (DESIGN.md DEC-08).
+     */
+    @Test
+    fun `decode takes the spool id from the reserve, not the serial`() {
+        val diverged = TagCodec.encode(specExample.copy(spoolmanSpoolId = 7))
+            .replaceRange(34, 40, "000042")
+
+        val decoded = TagCodec.decode(diverged)
+
+        assertEquals(42, decoded.fields.spoolmanSpoolId)
+        assertEquals("000007", decoded.serialNumber)
+    }
+
+    /** The same divergence as produced by the real overwrite path rather than a hand-spliced string. */
+    @Test
+    fun `a payload rewritten by withSpoolId decodes as the new spool`() {
+        val original = TagCodec.encode(specExample.copy(spoolmanSpoolId = 7))
+
+        val decoded = TagCodec.decode(TagCodec.withSpoolId(original, 42))
+
+        assertEquals(42, decoded.fields.spoolmanSpoolId)
+        assertEquals("000007", decoded.serialNumber)
+        assertEquals(7, TagCodec.decode(original).fields.spoolmanSpoolId)
+    }
+
+    /**
+     * A genuine tag's shape: a real serial number and an empty reserve. `0` is "no ID" to the printer
+     * (§9), and the app must report the same rather than presenting the serial as a spool number.
+     */
+    @Test
+    fun `an empty reserve decodes as spool id zero however the serial reads`() {
+        val genuineShape = TagCodec.encode(specExample)
+            .replaceRange(28, 34, "913277")
+            .replaceRange(34, 40, "000000")
+
+        val decoded = TagCodec.decode(genuineShape)
+
+        assertEquals(0, decoded.fields.spoolmanSpoolId)
+        assertEquals("913277", decoded.serialNumber)
+    }
+
+    /** Re-encoding a diverged payload resolves the divergence: both fields take the reserve's ID. */
+    @Test
+    fun `re-encoding a diverged payload puts the reserve id in both fields`() {
+        val diverged = TagCodec.encode(specExample.copy(spoolmanSpoolId = 7))
+            .replaceRange(34, 40, "000042")
+
+        val reEncoded = TagCodec.encode(TagCodec.decode(diverged).fields)
+
+        assertEquals("000042", reEncoded.substring(28, 34))
+        assertEquals("00004200000000", reEncoded.substring(34, 48))
     }
 
     @Test
@@ -186,47 +270,58 @@ class TagCodecTest {
     // --- withSpoolId ------------------------------------------------------------------------
 
     @Test
-    fun `withSpoolId replaces the serial number and nothing else`() {
+    fun `withSpoolId replaces the reserve id and nothing else`() {
         val original = TagCodec.encode(specExample.copy(spoolmanSpoolId = 7))
 
         val respliced = TagCodec.withSpoolId(original, 42)
 
-        assertEquals("000042", respliced.substring(28, 34))
-        assertEquals(original.take(28), respliced.take(28))
-        assertEquals(original.drop(34), respliced.drop(34))
+        assertEquals("000042", respliced.substring(34, 40))
+        assertEquals(original.take(34), respliced.take(34))
+        assertEquals(original.drop(40), respliced.drop(40))
     }
 
-    /** DESIGN.md DEC-01's duplicate is not refreshed: preserving unauthored bytes is the point. */
+    /**
+     * The serial number is left holding the previous ID: nothing resolves a spool from it, and it is a
+     * genuine tag's own data, which this mode exists to keep (DESIGN.md DEC-08).
+     */
     @Test
-    fun `withSpoolId leaves the reserve field holding the old id`() {
+    fun `withSpoolId leaves the serial number untouched`() {
         val original = TagCodec.encode(specExample.copy(spoolmanSpoolId = 7))
+
+        val respliced = TagCodec.withSpoolId(original, 42)
+
+        assertEquals("000007", respliced.substring(28, 34))
+        assertEquals("000007", TagCodec.decode(respliced).serialNumber)
+    }
+
+    /** Only `[40, 48)`, where a genuine tag's unidentified bytes sit, survives around the new ID. */
+    @Test
+    fun `withSpoolId keeps the reserve's trailing bytes`() {
+        val original = TagCodec.encode(specExample.copy(spoolmanSpoolId = 7))
+            .replaceRange(40, 48, "v" + "\u0000".repeat(7))
 
         val decoded = TagCodec.decode(TagCodec.withSpoolId(original, 42))
 
-        assertEquals(42, decoded.fields.spoolmanSpoolId)
-        assertEquals("00000700000000", decoded.reserve)
+        assertEquals("000042v" + "\u0000".repeat(7), decoded.reserve)
     }
 
     @Test
     fun `withSpoolId zero-pads a short id`() {
         val respliced = TagCodec.withSpoolId(TagCodec.encode(specExample), 7)
 
-        assertEquals("000007", respliced.substring(28, 34))
+        assertEquals("000007", respliced.substring(34, 40))
     }
 
     @Test
     fun `withSpoolId accepts the boundary ids`() {
         val encoded = TagCodec.encode(specExample)
 
-        assertEquals(0, TagCodec.decode(TagCodec.withSpoolId(encoded, 0)).fields.spoolmanSpoolId)
-        assertEquals(
-            999_999,
-            TagCodec.decode(TagCodec.withSpoolId(encoded, 999_999)).fields.spoolmanSpoolId,
-        )
+        assertEquals("000000", TagCodec.withSpoolId(encoded, 0).substring(34, 40))
+        assertEquals("999999", TagCodec.withSpoolId(encoded, 999_999).substring(34, 40))
     }
 
     @Test
-    fun `withSpoolId rejects an id too large for the serial field`() {
+    fun `withSpoolId rejects an id too large for the reserve field`() {
         val encoded = TagCodec.encode(specExample)
 
         assertThrows(IllegalArgumentException::class.java) {
@@ -255,7 +350,7 @@ class TagCodecTest {
     @Test
     fun `sector 2 content is ignored when decoding`() {
         val encoded = TagCodec.encode(specExample)
-        val tampered = encoded.replaceRange(48, 96, "k2".padEnd(48, ' '))
+        val tampered = encoded.replaceRange(48, 96, "k2".padEnd(48, '\u0000'))
 
         assertEquals(TagCodec.decode(encoded).fields, TagCodec.decode(tampered).fields)
     }

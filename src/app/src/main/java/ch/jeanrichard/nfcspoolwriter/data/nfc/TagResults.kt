@@ -61,12 +61,14 @@ enum class OverwriteMode {
     Replace,
 
     /**
-     * Keep every existing byte and change only the serial-number field to the new spool's ID.
+     * Keep every existing byte and change only the reserve's leading 6 characters — the field a
+     * printer resolves the Spoolman spool from — to the new spool's ID.
      *
      * For a tag whose content came from Creality rather than from this app: its batch number, date
-     * code and reserve bytes describe the physical spool and are not reproducible once overwritten,
-     * so re-pointing the tag at a different Spoolman spool should not cost them. See
-     * [ch.jeanrichard.nfcspoolwriter.domain.tagcodec.TagCodec.withSpoolId] for what "only" covers.
+     * code, serial number and trailing reserve bytes describe the physical spool and are not
+     * reproducible once overwritten, so re-pointing the tag at a different Spoolman spool should not
+     * cost them. See [ch.jeanrichard.nfcspoolwriter.domain.tagcodec.TagCodec.withSpoolId] for what
+     * "only" covers.
      */
     SpoolIdOnly,
 }
@@ -95,9 +97,10 @@ sealed interface TagWriteResult {
 
     /**
      * The tag already holds data and [MifareTagReaderWriter.write] was called with
-     * [OverwriteMode.Ask]. Nothing has been written. After the user confirms, call `write` again with
-     * the mode they chose — which needs a fresh tap, since the tag connection cannot be held open
-     * across a confirmation dialog.
+     * [OverwriteMode.Ask]. Nothing has been written, and the session is closed. After the user
+     * confirms, call `write` again with the mode they chose, over a fresh session on the same tag —
+     * which succeeds while the tag is still in the field, and fails as [TagFailure.TagLost] once it
+     * is not.
      *
      * [existing] is what the tag holds now, so the caller can both show it and decide which modes to
      * offer: [OverwriteMode.SpoolIdOnly] is only meaningful when this is a [TagReadResult.Written].

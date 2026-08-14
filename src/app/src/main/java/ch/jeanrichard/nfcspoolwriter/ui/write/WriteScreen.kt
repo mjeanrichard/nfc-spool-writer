@@ -60,7 +60,7 @@ fun WriteScreen(
                         )
                     }
                     Text(
-                        text = stringResource(R.string.write_overwrite_retap),
+                        text = stringResource(R.string.write_overwrite_hold),
                         style = MaterialTheme.typography.bodySmall,
                     )
                 }

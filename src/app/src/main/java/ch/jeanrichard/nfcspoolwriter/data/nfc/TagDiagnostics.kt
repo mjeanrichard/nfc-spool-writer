@@ -107,7 +107,10 @@ class TagDiagnostics(private val ioDispatcher: CoroutineDispatcher = Dispatchers
                     lines += "  colour      #${decoded.fields.colorRgb}"
                     lines += "  weight      ${decoded.fields.weight.grams} g " +
                         "(code ${decoded.fields.weight.code})"
-                    lines += "  spool ID    ${decoded.fields.spoolmanSpoolId}"
+                    lines += "  spool ID    ${decoded.fields.spoolmanSpoolId}   <- from the " +
+                        "reserve, the only field a printer resolves a spool from"
+                    lines += "  serial      ${decoded.serialNumber.escapeNonPrintable()}   <- " +
+                        "read by nothing; differs from the spool ID after an ID-only overwrite"
                     lines += "  reserve     ${decoded.reserve.escapeNonPrintable()}"
                     lines += "              ^ non-zero here is this project's deviation; check the " +
                         "printer tolerates it"

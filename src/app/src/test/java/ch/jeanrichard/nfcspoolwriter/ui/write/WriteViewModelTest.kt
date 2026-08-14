@@ -58,13 +58,15 @@ class WriteViewModelTest {
         spool: ch.jeanrichard.nfcspoolwriter.domain.model.Spool = testSpool(),
         getError: SpoolmanError? = null,
         compatibility: DeviceCompatibility = DeviceCompatibility.Compatible,
+        /** Overridable for the case where one tag must open as two different sessions. */
+        openSession: (Tag) -> MifareSession? = { sessions[it] },
     ) = WriteViewModel(
         spoolId = spool.id,
         spoolmanRepository = fakeSpoolmanRepository(listOf(spool), getError = getError),
         fieldMappingService = realFieldMappingService(),
         tagReaderWriter = readerWriter,
         compatibility = compatibility,
-        openSession = { sessions[it] },
+        openSession = openSession,
     )
 
     // --- Loading ---------------------------------------------------------------------------
@@ -199,6 +201,27 @@ class WriteViewModelTest {
         assertTrue(prompt.canWriteSpoolIdOnly)
     }
 
+    /**
+     * A tag that has already had an ID-only write names two spools: the serial the previous one, the
+     * reserve the one the printer acts on. The prompt asks the user to replace *that* spool, so it
+     * must name the reserve's — naming the serial's would describe a spool the tag no longer points
+     * the printer at (DESIGN.md DEC-08).
+     */
+    @Test
+    fun `the prompt reports the reserve's spool id when the serial names another`() = runTest {
+        val diverged = TagCodec.withSpoolId(
+            TagCodec.encode(testMappedFields().copy(spoolmanSpoolId = 7)),
+            13,
+        )
+        val vm = viewModel(mapOf(tagA to FakeMifareSession.written(diverged, uidA)))
+
+        vm.onTagDiscovered(tagA)
+
+        val prompt = vm.state.value.overwritePrompt!!
+        assertEquals(13, prompt.existingSpoolId)
+        assertTrue("was ${prompt.existingSummary}", prompt.existingSummary.contains("Spool 13"))
+    }
+
     @Test
     fun `cancelling the overwrite writes nothing`() = runTest {
         val written = FakeMifareSession.written(TagCodec.encode(testMappedFields()), uidA)
@@ -206,14 +229,17 @@ class WriteViewModelTest {
 
         vm.onTagDiscovered(tagA)
         vm.cancelOverwrite()
+        // A confirmation arriving after the dialog is gone has nothing left to act on.
+        vm.confirmOverwrite(OverwriteMode.Replace)
 
         assertNull(vm.state.value.overwritePrompt)
         assertEquals(0, vm.state.value.writtenTags.size)
+        assertTrue(written.writeLog.isEmpty())
     }
 
-    /** The tag connection can't survive a dialog, so overwriting needs a fresh tap — and says so. */
+    /** The tag is still against the phone while the dialog is up, so confirming can write it. */
     @Test
-    fun `confirming the overwrite asks for another tap`() = runTest {
+    fun `confirming the overwrite writes the tag without another tap`() = runTest {
         val written = FakeMifareSession.written(TagCodec.encode(testMappedFields()), uidA)
         val vm = viewModel(mapOf(tagA to written))
 
@@ -221,23 +247,33 @@ class WriteViewModelTest {
         vm.confirmOverwrite(OverwriteMode.Replace)
 
         assertNull(vm.state.value.overwritePrompt)
-        val message = vm.state.value.message
-        assertTrue((message as WriteMessage.Info).text.contains("again"))
-    }
-
-    @Test
-    fun `the tap after confirming actually overwrites`() = runTest {
-        val written = FakeMifareSession.written(TagCodec.encode(testMappedFields()), uidA)
-        val vm = viewModel(mapOf(tagA to written))
-
-        vm.onTagDiscovered(tagA)
-        vm.confirmOverwrite(OverwriteMode.Replace)
-        vm.onTagDiscovered(tagA)
-
+        assertEquals(false, vm.state.value.busy)
         assertEquals(1, vm.state.value.writtenTags.size)
         val message = vm.state.value.message
         assertEquals(false, (message as WriteMessage.Written).spoolIdOnly)
     }
+
+    /**
+     * The tag is opened again after the dialog, so what answers has to be the tag the user was
+     * shown — an approval must never be spent on a tag that took its place in the meantime.
+     */
+    @Test
+    fun `a confirmed overwrite refuses a tag that is not the one confirmed`() = runTest {
+        val prompted = FakeMifareSession.written(TagCodec.encode(testMappedFields()), uidA)
+        val other = FakeMifareSession.written(TagCodec.encode(testMappedFields()), uidB)
+        var opens = 0
+        val vm = viewModel(emptyMap(), openSession = { if (opens++ == 0) prompted else other })
+
+        vm.onTagDiscovered(tagA)
+        vm.confirmOverwrite(OverwriteMode.Replace)
+
+        val message = vm.state.value.message
+        assertTrue("was $message", message is WriteMessage.Info)
+        assertTrue((message as WriteMessage.Info).text.contains("not the tag you confirmed"))
+        assertEquals(0, vm.state.value.writtenTags.size)
+        assertTrue("the other tag must be untouched", other.writeLog.isEmpty())
+    }
+
 
     /** A confirmation with no prompt showing must not silently approve the next tag tapped. */
     @Test
@@ -254,9 +290,9 @@ class WriteViewModelTest {
 
     // --- Changing only the spool ID ----------------------------------------------------------
 
-    /** The tap after choosing "ID only" keeps the tag's data and moves only the spool ID. */
+    /** Choosing "ID only" keeps the tag's data and moves only the spool ID. */
     @Test
-    fun `the tap after choosing id only rewrites just the spool id`() = runTest {
+    fun `choosing id only rewrites just the spool id`() = runTest {
         val existing = testMappedFields().copy(
             spoolmanSpoolId = 7,
             filamentCatalogId = "02002",
@@ -267,28 +303,19 @@ class WriteViewModelTest {
 
         vm.onTagDiscovered(tagA)
         vm.confirmOverwrite(OverwriteMode.SpoolIdOnly)
-        vm.onTagDiscovered(tagA)
 
         assertEquals(1, vm.state.value.writtenTags.size)
         assertEquals(true, (vm.state.value.message as WriteMessage.Written).spoolIdOnly)
 
-        val onTag = (readerWriter.read(session.reopened()) as TagReadResult.Written).payload.fields
-        assertEquals(testMappedFields().spoolmanSpoolId, onTag.spoolmanSpoolId)
-        assertEquals("02002", onTag.filamentCatalogId)
-        assertEquals("0000FF", onTag.colorRgb)
-    }
-
-    /** Choosing "ID only" says what the next tap will do, which is not the same as overwriting. */
-    @Test
-    fun `choosing id only asks for another tap in its own words`() = runTest {
-        val written = FakeMifareSession.written(TagCodec.encode(testMappedFields()), uidA)
-        val vm = viewModel(mapOf(tagA to written))
-
-        vm.onTagDiscovered(tagA)
-        vm.confirmOverwrite(OverwriteMode.SpoolIdOnly)
-
-        val message = vm.state.value.message as WriteMessage.Info
-        assertTrue("was '${message.text}'", message.text.contains("spool ID"))
+        val onTag = (readerWriter.read(session.reopened()) as TagReadResult.Written).payload
+        // The reserve's leading 6 characters are the spool ID a printer resolves from (DEC-08), and
+        // are what a read of the tag must report even though the serial still names spool 7.
+        val expectedId = testMappedFields().spoolmanSpoolId.toString().padStart(6, '0')
+        assertEquals(expectedId, onTag.reserve.take(6))
+        assertEquals(testMappedFields().spoolmanSpoolId, onTag.fields.spoolmanSpoolId)
+        assertEquals("000007", onTag.serialNumber)
+        assertEquals("02002", onTag.fields.filamentCatalogId)
+        assertEquals("0000FF", onTag.fields.colorRgb)
     }
 
     /**
@@ -310,7 +337,7 @@ class WriteViewModelTest {
 
     /**
      * The option is withheld for content that does not parse, but the tag can still be damaged
-     * between the prompt and the tap that acts on it. The write must then fail and say what to do,
+     * between the prompt and the write that acts on it. The write must then fail and say what to do,
      * not fall back to replacing data the user asked to keep.
      */
     @Test
@@ -319,9 +346,8 @@ class WriteViewModelTest {
         val vm = viewModel(mapOf(tagA to session))
 
         vm.onTagDiscovered(tagA)
-        vm.confirmOverwrite(OverwriteMode.SpoolIdOnly)
         session.forceBlock(MifareLayout.primaryDataBlocks.first(), ByteArray(16))
-        vm.onTagDiscovered(tagA)
+        vm.confirmOverwrite(OverwriteMode.SpoolIdOnly)
 
         val message = vm.state.value.message as WriteMessage.Failed
         assertTrue("was '${message.text}'", message.text.contains("overwrite"))
@@ -339,9 +365,8 @@ class WriteViewModelTest {
         val session = FakeMifareSession.written(TagCodec.encode(testMappedFields()), uidA)
         val vm = viewModel(mapOf(tagA to session))
         vm.onTagDiscovered(tagA)
-        vm.confirmOverwrite(OverwriteMode.SpoolIdOnly)
         session.forceBlock(MifareLayout.primaryDataBlocks.first(), ByteArray(16))
-        vm.onTagDiscovered(tagA)
+        vm.confirmOverwrite(OverwriteMode.SpoolIdOnly)
 
         vm.onTagDiscovered(tagA)
 
@@ -351,18 +376,21 @@ class WriteViewModelTest {
         assertEquals(false, prompt!!.canWriteSpoolIdOnly)
     }
 
-    /** A retryable failure keeps its approval: for those, tapping again *is* the recovery. */
+    /**
+     * A retryable failure keeps its approval: for those, tapping again *is* the recovery. The tag
+     * lifting away as the button is pressed is exactly that case, and the one the confirmed write
+     * cannot rule out.
+     */
     @Test
     fun `a lost tag keeps the approval so the next tap resumes the chosen mode`() = runTest {
         val session = FakeMifareSession.written(TagCodec.encode(testMappedFields()), uidA)
         val vm = viewModel(mapOf(tagA to session))
         vm.onTagDiscovered(tagA)
+        // Gone before the connection is made, so the tag is left intact for the retry.
+        session.failConnect = true
         vm.confirmOverwrite(OverwriteMode.SpoolIdOnly)
-        // Fails before the first block lands, so the tag is left intact for the retry.
-        session.writeFailures[MifareLayout.primaryDataBlocks.first()] = Int.MAX_VALUE
-        vm.onTagDiscovered(tagA)
-        assertTrue(vm.state.value.message is WriteMessage.Failed)
-        session.writeFailures.remove(MifareLayout.primaryDataBlocks.first())
+        assertTrue((vm.state.value.message as WriteMessage.Failed).retryable)
+        session.failConnect = false
 
         vm.onTagDiscovered(tagA)
 
@@ -383,12 +411,14 @@ class WriteViewModelTest {
         vm.onTagDiscovered(tagA)
         val firstUid = vm.state.value.overwritePrompt!!.uid
         vm.confirmOverwrite(OverwriteMode.SpoolIdOnly)
+        vm.writeAnother()
         vm.onTagDiscovered(tagB)
 
         val second = vm.state.value.overwritePrompt
         assertTrue("expected a fresh prompt for the second tag", second != null)
         assertNotEquals(firstUid, second!!.uid)
-        assertEquals(0, vm.state.value.writtenTags.size)
+        // Only the tag that was actually approved was written.
+        assertEquals(listOf(firstUid), vm.state.value.writtenTags)
     }
 
     @Test
