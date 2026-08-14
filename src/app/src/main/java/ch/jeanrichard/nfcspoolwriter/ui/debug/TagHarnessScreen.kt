@@ -31,8 +31,8 @@ import ch.jeanrichard.nfcspoolwriter.domain.model.WeightBucket
 import ch.jeanrichard.nfcspoolwriter.ui.nfc.NfcReaderEffect
 
 /**
- * Temporary development screen for running the manual hardware checks — see [TagHarnessViewModel]
- * for why it exists.
+ * Temporary development screen for validating tag behaviour on real hardware — see
+ * [TagHarnessViewModel] for why it exists.
  */
 @Composable
 fun TagHarnessScreen(

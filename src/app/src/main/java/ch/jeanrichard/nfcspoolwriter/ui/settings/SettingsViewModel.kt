@@ -35,8 +35,9 @@ class SettingsViewModel(
     }
 
     fun onUrlChange(url: String) = _state.update {
-        // Any edit invalidates a previous test result — it referred to a different address.
-        it.copy(url = url, testResult = null)
+        // Any edit invalidates a previous test result and the saved confirmation — both referred
+        // to a different address than the one now in the field.
+        it.copy(url = url, testResult = null, justSaved = false)
     }
 
     fun save() {
@@ -47,8 +48,6 @@ class SettingsViewModel(
             _state.update { it.copy(savedUrl = saved, justSaved = true) }
         }
     }
-
-    fun onSavedMessageShown() = _state.update { it.copy(justSaved = false) }
 
     /** Tests the address currently in the field, saved or not. */
     fun testConnection() {

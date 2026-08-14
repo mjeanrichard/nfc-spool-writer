@@ -51,7 +51,7 @@ class AppContainer(private val applicationContext: Context) {
 
     val tagReaderWriter: MifareTagReaderWriter by lazy { MifareTagReaderWriter() }
 
-    /** Diagnostic-only raw tag dumps, for the manual hardware checklist. */
+    /** Diagnostic-only raw tag dumps, for validating tag behaviour on real hardware. */
     val tagDiagnostics: TagDiagnostics by lazy { TagDiagnostics() }
 
     /** Parsed once from the bundled asset; the catalog is static data. */

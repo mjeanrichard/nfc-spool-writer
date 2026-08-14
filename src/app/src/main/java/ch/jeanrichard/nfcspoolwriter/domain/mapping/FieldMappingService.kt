@@ -3,6 +3,7 @@ package ch.jeanrichard.nfcspoolwriter.domain.mapping
 import ch.jeanrichard.nfcspoolwriter.domain.model.MappedFields
 import ch.jeanrichard.nfcspoolwriter.domain.model.Spool
 import ch.jeanrichard.nfcspoolwriter.domain.model.WeightBucket
+import ch.jeanrichard.nfcspoolwriter.domain.model.isHexDigit
 
 /**
  * Turns a Spoolman [Spool] into the [MappedFields] that get written to a tag.
@@ -128,6 +129,3 @@ sealed interface MappingResult {
         val materialMatch: MaterialMatch,
     ) : MappingResult
 }
-
-private fun Char.isHexDigit(): Boolean =
-    this in '0'..'9' || this in 'a'..'f' || this in 'A'..'F'

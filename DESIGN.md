@@ -30,7 +30,7 @@ app/
 │   ├── mapping/          FieldMappingService, MaterialMatcher
 │   └── tagcodec/         TagCodec (structured fields <-> 96-char payload string)
 ├── data/
-│   ├── spoolman/         SpoolmanApiClient (Ktor/Retrofit), DTOs, repository
+│   ├── spoolman/         SpoolmanApiClient (Ktor), DTOs, repository
 │   ├── materials/         MaterialCatalog (bundled materials.json) + loader
 │   ├── nfc/               KeyDerivation, PayloadCipher, MifareTagReaderWriter
 │   └── settings/          DataStore-backed settings repository
@@ -126,9 +126,13 @@ Settled choices that are not obvious from the code, with the reasoning that woul
   zero-padded to 6 digits; the reserve repeats it in its first 6 characters and zero-fills the remaining
   8. This deviates from genuine tags, which hold a per-spool non-zero byte at payload offset 40 whose
   meaning is unidentified.
-- `DEC-02` — **The `[0,5)` lead code is written as the constant `AB124`.** It is *not* a constant on
-  genuine tags, which carry varying values, so it must be **read** permissively and preserved. `AB124`
-  is written because every community implementation writes it and printers accept it.
+- `DEC-02` — **The batch-number and date-code fields are written as the constants `AB1` and
+  `24027`.** With the supplier ID they concatenate to `AB1240276A21`, exactly the prefix every
+  community implementation writes and printers are reported to accept. Neither is constant on
+  genuine tags, which carry varying values, so both must be **read** permissively and preserved —
+  only the write side pins them. (Earlier revisions modelled these 8 characters as a `[0,5)` "lead
+  code" `AB124` plus the date's tail; the current partition is documented on `MappedFields`, and the
+  bytes written are unchanged.)
 - `DEC-03` — **Every spool is written with Creality's supplier ID (`6A21`)**, whoever made the
   filament. It is the only value observed on genuine tags and the only one with evidence of being
   accepted; no registered ID exists for anyone else; and whether the field affects printer behaviour is

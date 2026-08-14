@@ -4,9 +4,9 @@ package ch.jeanrichard.nfcspoolwriter.domain.model
  * A Spoolman spool, reduced to what this app needs.
  *
  * Deliberately not Spoolman's wire shape: almost everything in its API is optional, and pushing that
- * optionality into the mapping layer is what produces silent wrong values on a tag. Phase 4's DTO
- * conversion is where nulls get resolved or rejected; by the time a [Spool] exists, [id] and
- * [filament] are known good.
+ * optionality into the mapping layer is what produces silent wrong values on a tag. The DTO
+ * conversion in `SpoolmanDto` is where nulls get resolved or rejected; by the time a [Spool]
+ * exists, [id] and [filament] are known good.
  */
 data class Spool(
     /** Spoolman's spool ID. Written to the tag's serial-number and reserve fields. */

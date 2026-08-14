@@ -14,9 +14,9 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * Covers the client's cross-cutting configuration, not any Spoolman endpoint (those arrive in
- * Phase 4): that JSON decodes through ContentNegotiation, that fields the app doesn't know about
- * are tolerated, and that a non-2xx response is returned rather than thrown.
+ * Covers the client's cross-cutting configuration, not any Spoolman endpoint (those are
+ * [SpoolmanApiClientTest]'s job): that JSON decodes through ContentNegotiation, that fields the app
+ * doesn't know about are tolerated, and that a non-2xx response is returned rather than thrown.
  */
 class SpoolmanHttpClientTest {
 

@@ -163,8 +163,8 @@ devices. The meaningful signal is the **`com.nxp.mifare`** system feature.
   app that jumps to the front for it is a nuisance — worse here, since the app's foreground screen at
   that moment could be a write flow armed for a different spool.
 - `UI-04` — **Raw tag tooling:** a development harness for reading and diagnosing raw tag contents exists. It is
-  not a v1 user-facing requirement, but is retained because it is the only way to run the outstanding
-  manual hardware validation. The user-facing read
+  not a v1 user-facing requirement, but is retained because it is the only way to validate tag
+  behaviour on real hardware, which unit tests cannot reach. The user-facing read
   & check mode above does not replace it: the harness shows trailer/access bits and raw hex that the
   read mode deliberately hides.
 
