@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ch.jeanrichard.nfcspoolwriter.R
 import ch.jeanrichard.nfcspoolwriter.domain.model.Filament
+import ch.jeanrichard.nfcspoolwriter.domain.model.isHexDigit
 import kotlin.math.pow
 
 /**
@@ -149,8 +150,8 @@ private fun linearize(channel: Int): Double {
     return if (v <= 0.04045) v / 12.92 else ((v + 0.055) / 1.055).pow(2.4)
 }
 
-private const val OPAQUE = 0xFF000000.toInt()
+/** Alpha byte that turns a bare `0xRRGGBB` into an opaque Compose colour value. */
+internal const val OPAQUE = 0xFF000000.toInt()
+
 private const val UNKNOWN_MATERIAL_LABEL = "?"
 private val WHITESPACE = Regex("\\s+")
-
-private fun Char.isHexDigit(): Boolean = this in '0'..'9' || this in 'a'..'f' || this in 'A'..'F'

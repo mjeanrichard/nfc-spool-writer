@@ -82,13 +82,15 @@ class SettingsViewModelTest {
         assertEquals(false, vm.state.value.hasUnsavedChanges)
     }
 
+    /** "Saved." next to an edited, unsaved address would be actively misleading. */
     @Test
-    fun `the saved confirmation can be dismissed`() = runTest {
+    fun `editing the url clears the saved confirmation`() = runTest {
         val vm = viewModel()
         vm.onUrlChange("http://a")
         vm.save()
+        assertTrue(vm.state.value.justSaved)
 
-        vm.onSavedMessageShown()
+        vm.onUrlChange("http://b")
 
         assertEquals(false, vm.state.value.justSaved)
     }

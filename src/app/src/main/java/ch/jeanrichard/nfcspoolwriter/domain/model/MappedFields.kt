@@ -95,5 +95,6 @@ data class MappedFields(
 
 private fun Char.isAsciiPrintable(): Boolean = this in ' '..'~'
 
-private fun Char.isHexDigit(): Boolean =
+/** Shared by every place that validates or parses `RRGGBB` colour input. */
+internal fun Char.isHexDigit(): Boolean =
     this in '0'..'9' || this in 'a'..'f' || this in 'A'..'F'

@@ -32,8 +32,8 @@ class SettingsRepository(private val dataStore: DataStore<Preferences>) {
          * Trims whitespace and drops trailing slashes so callers can append API paths
          * (`/api/v1/spool`) without worrying about double slashes. Returns null for input
          * that holds nothing but whitespace/slashes. Beyond that, no validation happens
-         * here — the settings screen's "test connection" action (Phase 4) is what tells the
-         * user whether the URL actually works.
+         * here — the settings screen's "test connection" action is what tells the user
+         * whether the URL actually works.
          */
         fun normalizeBaseUrl(raw: String): String? =
             raw.trim().trimEnd('/').takeIf { it.isNotEmpty() }

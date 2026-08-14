@@ -11,8 +11,8 @@ import java.io.IOException
  * pulled away mid-write, a write that fails once then succeeds, a block that silently stores the
  * wrong bytes — are reachable without hardware.
  *
- * Its fidelity to the real adapter is an assumption, not a proof; that's what the manual hardware
- * checklist exists to confirm.
+ * Its fidelity to the real adapter is an assumption, not a proof; confirming it takes manual
+ * validation on real hardware.
  */
 class FakeMifareSession(
     override val uid: ByteArray = hexToBytes("11223344"),

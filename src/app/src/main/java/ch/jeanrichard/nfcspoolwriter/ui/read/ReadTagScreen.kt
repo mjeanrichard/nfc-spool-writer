@@ -30,6 +30,7 @@ import ch.jeanrichard.nfcspoolwriter.R
 import ch.jeanrichard.nfcspoolwriter.data.nfc.DeviceCompatibility
 import ch.jeanrichard.nfcspoolwriter.ui.confirm.FieldRow
 import ch.jeanrichard.nfcspoolwriter.ui.nfc.NfcReaderEffect
+import ch.jeanrichard.nfcspoolwriter.ui.spoollist.OPAQUE
 import ch.jeanrichard.nfcspoolwriter.ui.spoollist.SpoolSummary
 
 /**
@@ -230,5 +231,3 @@ private fun SpoolmanCard(lookup: SpoolLookup) {
         }
     }
 }
-
-private const val OPAQUE = 0xFF000000.toInt()

@@ -195,7 +195,7 @@ class FieldMappingServiceTest {
     /**
      * The serial field is 6 digits, so a larger Spoolman ID cannot be represented. Currently this
      * throws from [MappedFields]; documented here so the failure is a known boundary rather than a
-     * surprise crash in the UI. Phase 5 should surface it as a mapping error.
+     * surprise crash in the UI. Surfacing it as a mapping error instead would be the better fix.
      */
     @Test
     fun `a spool id beyond six digits is rejected rather than silently truncated`() {

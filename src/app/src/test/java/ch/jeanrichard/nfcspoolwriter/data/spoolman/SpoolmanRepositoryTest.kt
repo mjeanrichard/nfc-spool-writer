@@ -37,9 +37,13 @@ class SpoolmanRepositoryTest {
                 content = respondWith(offset),
                 status = HttpStatusCode.OK,
                 headers = headersOf(
-                    HttpHeaders.ContentType to listOf(ContentType.Application.Json.toString()),
-                    SpoolmanApiClient.TOTAL_COUNT_HEADER to
-                        listOf((totalCount ?: 0).toString()),
+                    // null models a proxy stripping the header, so it is omitted entirely.
+                    *listOfNotNull(
+                        HttpHeaders.ContentType to listOf(ContentType.Application.Json.toString()),
+                        totalCount?.let {
+                            SpoolmanApiClient.TOTAL_COUNT_HEADER to listOf(it.toString())
+                        },
+                    ).toTypedArray()
                 ),
             )
         }
@@ -123,16 +127,50 @@ class SpoolmanRepositoryTest {
         assertEquals(2, requests.size)
     }
 
-    /** A server that keeps returning rows must not loop forever. */
+    /** A server that keeps promising more rows than it delivers must not loop forever. */
     @Test
     fun `loadAllSpools stops at an empty page even if the total disagrees`() = runTest {
         val repo = repository("http://h", totalCount = 10_000) { offset ->
-            if (offset == 0) "[${spoolJson(1)}]" else "[]"
+            if (offset == 0) {
+                (1..SpoolmanRepository.PAGE_LIMIT).joinToString(",", "[", "]") { spoolJson(it) }
+            } else {
+                "[]"
+            }
         }
 
         val page = (repo.loadAllSpools() as SpoolmanResult.Success).value
 
+        assertEquals(SpoolmanRepository.PAGE_LIMIT, page.spools.size)
+        assertEquals(2, requests.size)
+    }
+
+    /** A short page means the list is exhausted; no follow-up request is owed. */
+    @Test
+    fun `loadAllSpools stops at a short page without another request`() = runTest {
+        val repo = repository("http://h", totalCount = 10_000) { "[${spoolJson(1)}]" }
+
+        val page = (repo.loadAllSpools() as SpoolmanResult.Success).value
+
         assertEquals(1, page.spools.size)
+        assertEquals(1, requests.size)
+    }
+
+    /** A proxy can strip x-total-count; a full page must still be followed up, not reported as all. */
+    @Test
+    fun `loadAllSpools keeps paging when the total count header is missing`() = runTest {
+        val total = SpoolmanRepository.PAGE_LIMIT + 3
+        val repo = repository("http://h", totalCount = null) { offset ->
+            val remaining = (total - offset).coerceAtLeast(0)
+            val count = minOf(SpoolmanRepository.PAGE_LIMIT, remaining)
+            (1..count).joinToString(",", "[", "]") { spoolJson(offset + it) }
+        }
+
+        val page = (repo.loadAllSpools() as SpoolmanResult.Success).value
+
+        assertEquals(total, page.spools.size)
+        // The real total is unknowable without the header; reporting the collected size keeps the
+        // UI from claiming the list was cut short.
+        assertEquals(total, page.totalCount)
         assertEquals(2, requests.size)
     }
 

@@ -21,8 +21,8 @@ val AppJson: Json = Json {
 
 /**
  * Builds the HTTP client used for Spoolman calls. No base URL is configured here — it lives in
- * settings and is applied per-request by the API client (Phase 4), since the user can change it
- * at runtime without the client being rebuilt.
+ * settings and is applied per-request by the API client, since the user can change it at runtime
+ * without the client being rebuilt.
  *
  * The [engine] parameter exists so unit tests can pass Ktor's `MockEngine` in place of OkHttp.
  */

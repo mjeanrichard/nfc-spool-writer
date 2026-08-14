@@ -72,13 +72,21 @@ class SpoolmanRepository(
                     total = page.value.totalCount
                     offset += page.value.spools.size
 
-                    val exhausted = page.value.spools.isEmpty() || collected.size >= total
+                    // A short page is the only end-of-list signal that survives a proxy stripping
+                    // the x-total-count header: the client then reports the page size as the total,
+                    // so trusting `collected >= total` would end pagination after one full page and
+                    // present a partial list as complete.
+                    val exhausted = page.value.spools.size < PAGE_LIMIT
                     if (exhausted || collected.size >= MAX_SPOOLS) break
                 }
             }
         }
 
-        return SpoolmanResult.Success(SpoolPage(spools = collected, totalCount = total))
+        // With the header stripped, `total` is only the last page's size — never report fewer
+        // spools than were actually collected.
+        return SpoolmanResult.Success(
+            SpoolPage(spools = collected, totalCount = maxOf(total, collected.size))
+        )
     }
 
     private suspend fun <T> withBaseUrl(
