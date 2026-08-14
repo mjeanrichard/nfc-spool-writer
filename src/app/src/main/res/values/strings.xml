@@ -105,6 +105,8 @@
     <string name="write_session_heading">Written in this session:</string>
     <string name="write_tag_done">UID %1$s</string>
     <string name="write_success">Tag written and verified.</string>
+    <string name="write_success_id_only">Spool ID written and verified. The rest of the tag is
+        exactly as it was.</string>
     <string name="write_another">Write another tag</string>
     <string name="write_retry_hint">Hold the phone still and flat against the tag, then try
         again.</string>
@@ -114,7 +116,12 @@
     <string name="write_overwrite_body">This tag already contains: %1$s</string>
     <string name="write_overwrite_retap">After confirming, tap the same tag again — the connection
         cannot be held open while this prompt is showing.</string>
-    <string name="write_overwrite_confirm">Overwrite</string>
+    <string name="write_overwrite_confirm">Overwrite everything</string>
+    <string name="write_overwrite_id_only_body">You can instead leave this tag exactly as it is and
+        change only its spool ID to %1$d. That keeps the material, colour and weight already on the
+        tag — worth doing for a genuine Creality tag, whose own data cannot be recreated once it is
+        replaced.</string>
+    <string name="write_overwrite_id_only">Change spool ID only</string>
 
     <!-- NFC capability -->
     <string name="nfc_no_hardware">This device has no NFC hardware, so it cannot write tags.</string>

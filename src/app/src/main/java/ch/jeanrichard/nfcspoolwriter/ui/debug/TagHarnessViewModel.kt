@@ -6,7 +6,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import ch.jeanrichard.nfcspoolwriter.data.nfc.DeviceCompatibility
 import ch.jeanrichard.nfcspoolwriter.data.nfc.MifareClassicSession
+import ch.jeanrichard.nfcspoolwriter.data.nfc.MifareSession
 import ch.jeanrichard.nfcspoolwriter.data.nfc.MifareTagReaderWriter
+import ch.jeanrichard.nfcspoolwriter.data.nfc.OverwriteMode
 import ch.jeanrichard.nfcspoolwriter.data.nfc.TagDiagnostics
 import ch.jeanrichard.nfcspoolwriter.data.nfc.TagFailure
 import ch.jeanrichard.nfcspoolwriter.data.nfc.TagReadResult
@@ -67,28 +69,29 @@ class TagHarnessViewModel(
 
                 HarnessAction.Read -> describe(readerWriter.read(session))
 
-                HarnessAction.Write, HarnessAction.WriteOverwrite -> {
-                    when (val fields = _state.value.form.toFields()) {
-                        is FormResult.Invalid -> {
-                            session.close()
-                            "Form invalid: ${fields.reason}"
-                        }
+                HarnessAction.Write -> write(session, OverwriteMode.Ask)
 
-                        is FormResult.Valid -> describe(
-                            readerWriter.write(
-                                session = session,
-                                fields = fields.fields,
-                                allowOverwrite = action == HarnessAction.WriteOverwrite,
-                            )
-                        )
-                    }
-                }
+                HarnessAction.WriteOverwrite -> write(session, OverwriteMode.Replace)
+
+                HarnessAction.WriteSpoolIdOnly -> write(session, OverwriteMode.SpoolIdOnly)
             }
 
             append("[${action.label}] $message")
             _state.update { it.copy(busy = false) }
         }
     }
+
+    private suspend fun write(session: MifareSession, overwrite: OverwriteMode): String =
+        when (val fields = _state.value.form.toFields()) {
+            is FormResult.Invalid -> {
+                session.close()
+                "Form invalid: ${fields.reason}"
+            }
+
+            is FormResult.Valid -> describe(
+                readerWriter.write(session = session, fields = fields.fields, overwrite = overwrite)
+            )
+        }
 
     /**
      * Mirrors every result to Logcat as well as the on-screen log. Diagnostic dumps are wider than
@@ -127,7 +130,8 @@ class TagHarnessViewModel(
         is TagWriteResult.OverwriteRequired ->
             "ALREADY WRITTEN — nothing was written. Existing content:\n" +
                 describe(result.existing).prependIndent("  ") +
-                "\n\nSwitch to 'Write (overwrite)' and tap again to replace it."
+                "\n\nSwitch to 'Write (overwrite)' to replace it, or 'Write (ID only)' to keep it " +
+                "and change just the serial number, then tap again."
 
         is TagWriteResult.Failed -> buildString {
             append("FAILED — ${describe(result.failure)}")
@@ -150,6 +154,10 @@ class TagHarnessViewModel(
             "the tag left the field or I/O failed (${failure.cause?.message}). Try again."
 
         is TagFailure.VerifyMismatch -> "read-back did not match what was written.\n${failure.detail}"
+
+        is TagFailure.ExistingContentUnreadable ->
+            "the tag's existing content does not decode, so there is nothing to preserve around a " +
+                "new spool ID.\n${failure.detail}"
     }
 
     private companion object {
@@ -165,11 +173,12 @@ data class TagHarnessState(
     val log: List<String> = emptyList(),
 )
 
-enum class HarnessAction(val label: String) {
+enum class HarnessAction(val label: String, val writesToTag: Boolean = false) {
     Diagnose("Diagnose"),
     Read("Read"),
-    Write("Write"),
-    WriteOverwrite("Write (overwrite)"),
+    Write("Write", writesToTag = true),
+    WriteOverwrite("Write (overwrite)", writesToTag = true),
+    WriteSpoolIdOnly("Write (ID only)", writesToTag = true),
 }
 
 /**

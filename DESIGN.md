@@ -55,7 +55,9 @@ WriteScreen
     │  3. TagCodec.encode(MappedFields) -> 96-char string
     │  4. PayloadCipher.encrypt(bytes 0-47) for sector 1; bytes 48-95 stay plaintext
     │  5. MifareTagReaderWriter.write(...)  (installs sector-1 trailer key on first write,
-    │     detects "already written" -> triggers overwrite confirm dialog before writing)
+    │     detects "already written" -> triggers overwrite confirm dialog before writing;
+    │     the dialog can answer "replace everything" or "change only the spool ID", the
+    │     latter re-splicing the serial into the payload already on the tag)
     │  6. Read back + TagCodec.decode + compare -> verify
     │  7. success / retry-with-guidance / failure state
 ```
@@ -154,3 +156,11 @@ Settled choices that are not obvious from the code, with the reasoning that woul
   emits a warning on the confirm screen and writes the ID unchanged. Spoolman cannot renumber a spool —
   the ID is its database key, not an editable property — so the remedy is the user's to choose: add the
   spool again as a new record, or select the filament by hand at the printer.
+- `DEC-08` — **An ID-only overwrite preserves the reserve field, leaving it out of step with the
+  serial.** `DEC-01` has a full write put the spool ID in both, so a tag rewritten this way holds a
+  reserve naming the *previous* spool. That is deliberate: the mode exists for tags whose content this
+  app did not author, where the reserve holds vendor bytes of unknown purpose (a genuine tag was
+  observed carrying `0x76` and NULs there), and preserving unauthored bytes is the entire point.
+  Nothing reads the reserve — it is diagnostic output only — so the inconsistency costs nothing, while
+  refreshing it would destroy exactly what the user chose this mode to keep. The consequence to be
+  aware of: the reserve is not a second opinion about the spool ID, and no code may treat it as one.

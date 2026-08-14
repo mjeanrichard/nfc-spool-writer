@@ -41,4 +41,9 @@ fun TagFailure.userMessage(): String = when (this) {
     is TagFailure.VerifyMismatch ->
         "The tag was written but reading it back gave something different, so the write can't " +
             "be trusted. Try again."
+
+    is TagFailure.ExistingContentUnreadable ->
+        "This tag's existing data could not be read, so its spool ID cannot be changed on its own " +
+            "— there is nothing intact left to keep. Tap the tag again and choose to overwrite it " +
+            "with the spool's full data."
 }

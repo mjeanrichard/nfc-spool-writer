@@ -77,10 +77,23 @@ class FakeMifareSession(
      */
     var spuriousAuthFailures = 0
 
+    /**
+     * 1-based positions of authentication calls to reject, counting every call in the session. The
+     * counterpart to [spuriousAuthFailures], which rejects the *first* few: naming positions reaches
+     * a re-authentication in the middle of an operation without disturbing the ones before it.
+     */
+    val failAuthenticationsAt = mutableSetOf<Int>()
+
+    private var authentications = 0
+
     override fun authenticateSectorWithKeyA(sector: Int, key: ByteArray): Boolean {
         checkConnected()
         if (spuriousAuthFailures > 0) {
             spuriousAuthFailures--
+            authenticatedSectors -= sector
+            return false
+        }
+        if (++authentications in failAuthenticationsAt) {
             authenticatedSectors -= sector
             return false
         }
@@ -178,10 +191,14 @@ class FakeMifareSession(
         /**
          * A tag already carrying [payload] under the derived key for [uid] — i.e. what a previous
          * successful write leaves behind.
+         *
+         * @param sectorTwoKey overrides the default key sector 2 is expected to be on, for the case
+         *   where the plaintext half cannot be read at all.
          */
         fun written(
             payload: String,
             uid: ByteArray = hexToBytes("11223344"),
+            sectorTwoKey: ByteArray? = null,
         ): FakeMifareSession {
             require(payload.length == 96) { "payload must be 96 characters" }
             val derivedKey = KeyDerivation.deriveSectorKey(uid)
@@ -200,7 +217,10 @@ class FakeMifareSession(
 
             return FakeMifareSession(
                 uid = uid,
-                sectorKeys = mapOf(MifareLayout.PRIMARY_SECTOR to derivedKey),
+                sectorKeys = buildMap {
+                    put(MifareLayout.PRIMARY_SECTOR, derivedKey)
+                    sectorTwoKey?.let { put(MifareLayout.SECONDARY_SECTOR, it) }
+                },
                 blocks = blocks,
             )
         }

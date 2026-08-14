@@ -61,6 +61,37 @@ object TagCodec {
     }
 
     /**
+     * Returns [payload] with the serial-number field replaced by [spoolId] and **every other byte
+     * byte-identical** — the "change the Spoolman ID only" overwrite (REQUIREMENTS.md `REQ-16`).
+     *
+     * The point of this operation is a tag whose content this app did not author: a genuine Creality
+     * tag carries a real batch number, date code and reserve bytes, and re-pointing it at a different
+     * Spoolman spool should not cost the user that data. So nothing is re-derived here — not even the
+     * fields [encode] would write as constants.
+     *
+     * **The reserve is deliberately left alone**, even though [encode] derives it from the spool ID
+     * (DESIGN.md DEC-01). Preserving bytes of unknown purpose is the whole reason this path exists,
+     * and the serial number is the field the format actually defines as the ID; the reserve copy is
+     * this project's own convention. A tag rewritten this way therefore holds a reserve that does not
+     * match its serial, which is exactly what a genuine tag looks like.
+     *
+     * @throws TagDecodeException if [payload] is not something [decode] can read. Splicing a field
+     *   into bytes we cannot parse would leave the tag as broken as it already is, only differently —
+     *   and the caller cannot have meant to preserve content that is not intact.
+     */
+    fun withSpoolId(payload: String, spoolId: Int): String {
+        // Trust boundary, same as decode: the bytes came off a physical tag and may hold anything.
+        decode(payload)
+        require(spoolId in 0..MappedFields.MAX_SPOOL_ID) {
+            "spoolId must fit in ${SERIAL_NUMBER.count()} digits, was $spoolId"
+        }
+        return payload.replaceRange(
+            SERIAL_NUMBER,
+            spoolId.toString().padStart(SERIAL_NUMBER.count(), '0'),
+        )
+    }
+
+    /**
      * The reserve field duplicates the spool ID in its first 6 characters and zero-fills the
      * remaining 8. **This is a project decision, not part of the format** (§9, DESIGN.md DEC-01).
      *
