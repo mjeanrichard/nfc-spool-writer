@@ -7,27 +7,51 @@ description: Privacy policy for the NFC Spool Writer Android app.
 
 **App:** NFC Spool Writer (`ch.jeanrichard.nfcspoolwriter`)
 **Effective date:** 7 August 2026
-**Last updated:** 7 August 2026
+**Last updated:** 4 October 2026
 
 ## Summary
 
 NFC Spool Writer does not collect, transmit, or share any personal data. There is no account, no
 developer-operated server, no analytics, and no advertising. Everything the app stores stays on your
-device.
+device. If something goes wrong, you can choose to email an error report yourself — the app never
+sends one.
 
 ## What the app stores
 
-The app stores exactly one piece of information: **the address of the Spoolman server you type into
-Settings**.
+The app stores two pieces of information: **the address of the Spoolman server you type into
+Settings**, and **any changes you make to the app's material list** (materials you add or edit).
 
-It is held in the app's own private storage on your device. It is never sent to the developer or to
-any third party. It is used for one purpose — knowing where to send your own requests.
+Both are held in the app's own private storage on your device. They are never sent to the developer
+or to any third party. The address is used for one purpose — knowing where to send your own
+requests; the material changes are used only to decide what gets written to your tags.
 
-If you have Android's built-in backup enabled, this setting may be included in *your* Google account
-backup, so that it is restored when you set up a new phone. That is a function of the Android
-operating system acting on your behalf; the developer has no access to it and receives nothing.
+If you have Android's built-in backup enabled, these settings may be included in *your* Google
+account backup, so that they are restored when you set up a new phone. That is a function of the
+Android operating system acting on your behalf; the developer has no access to it and receives
+nothing.
 
-You can erase this setting at any time by clearing the app's storage or uninstalling the app.
+You can erase these settings at any time by clearing the app's storage or uninstalling the app; the
+material list can also be reset to the built-in one from within the app.
+
+If the app crashes, it also keeps the technical details of that crash on your device until the next
+time you open it, when it asks whether you want to report it. Whatever you answer, the details are
+then deleted. They are never included in Android backups.
+
+## Error reports
+
+When the app crashes, or a tag cannot be read or written, you can choose to send an error report.
+Nothing is sent automatically, and nothing is sent by the app itself:
+
+- The report opens as a draft in **your own email app**, addressed to the developer. You can read
+  and edit all of it, and it is only sent if you send it.
+- It contains the technical description of the error (the "stack trace"), the app version, your
+  phone's manufacturer and model, and its Android version.
+- Before the draft is shown, the app removes server addresses — including your Spoolman address —
+  IP addresses, tag serial numbers, and data from your tags or your Spoolman server.
+
+If you send a report, the developer receives it as an ordinary email, including your email address,
+and uses it only to diagnose and fix the problem. You can ask for a report to be deleted by writing
+to the address below.
 
 ## Network access
 
@@ -54,7 +78,7 @@ The app writes filament information to NFC tags that you physically hold against
 ## What the app does not do
 
 - No analytics, telemetry, or usage tracking.
-- No crash or error reporting to the developer.
+- No automatic crash or error reporting. Reports exist only as emails you choose to send.
 - No advertising, and no advertising identifier. The app does not request the `AD_ID` permission.
 - No third-party SDKs of any kind.
 - No accounts, sign-in, or credentials.

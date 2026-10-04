@@ -3,16 +3,18 @@ package ch.jeanrichard.nfcspoolwriter.data.materials
 import ch.jeanrichard.nfcspoolwriter.data.spoolman.AppJson
 import ch.jeanrichard.nfcspoolwriter.domain.model.MaterialCatalogFile
 import ch.jeanrichard.nfcspoolwriter.domain.model.MaterialEntry
+import ch.jeanrichard.nfcspoolwriter.domain.model.MaterialSource
 
 /**
- * The bundled Creality material catalog, in memory.
+ * The material catalog in memory: the built-in list with the user's changes applied.
  *
- * Pure and Android-free — parsing takes a JSON string, so the whole catalog and every lookup is unit
- * testable against the real bundled asset. Reading the asset itself is [MaterialCatalogLoader]'s job.
+ * Immutable — a new instance is built whenever the user's changes change, which
+ * [MaterialCatalogRepository] does behind a flow. Pure and Android-free, so the whole catalog and every
+ * lookup is unit testable against the real bundled asset.
  */
 class MaterialCatalog(entries: List<MaterialEntry>) {
 
-    /** Every entry, in catalog order. */
+    /** Every entry, in catalog order: built-in entries first, then the user's additions. */
     val all: List<MaterialEntry> = entries.toList()
 
     /**
@@ -23,6 +25,14 @@ class MaterialCatalog(entries: List<MaterialEntry>) {
 
     /** The `Generic` profiles — the fallback target set for third-party filament. */
     val generics: List<MaterialEntry> = selectable.filter { it.isGeneric }
+
+    /** Distinct brands in order of first appearance, for suggesting one when editing an entry. */
+    val brands: List<String> = all.map { it.brand }.distinct()
+
+    /** Distinct families in order of first appearance, for suggesting one when editing an entry. */
+    val families: List<String> = all.mapNotNull { it.type }.distinct()
+
+    val hasUserChanges: Boolean = all.any { it.source != MaterialSource.BUILT_IN }
 
     private val byId: Map<String, MaterialEntry> = all.associateBy { it.id }
 
@@ -52,8 +62,29 @@ class MaterialCatalog(entries: List<MaterialEntry>) {
             .sortedByDescending { it.isGeneric }
 
     companion object {
-        fun fromJson(json: String): MaterialCatalog =
-            MaterialCatalog(AppJson.decodeFromString<MaterialCatalogFile>(json).materials)
+        /** The built-in catalog alone, as shipped in `materials.json`. */
+        fun fromJson(json: String): MaterialCatalog = MaterialCatalog(parseBuiltIn(json))
+
+        fun parseBuiltIn(json: String): List<MaterialEntry> =
+            AppJson.decodeFromString<MaterialCatalogFile>(json).materials
+
+        /**
+         * Applies the user's changes to the built-in list. An override replaces the built-in entry
+         * in place, keeping its ID and position; custom entries follow the built-in ones. A custom
+         * entry whose ID has meanwhile become built-in (a newer app shipping it) is dropped in favour
+         * of the built-in one, since the firmware's meaning for that ID is the one that counts.
+         */
+        fun merged(builtIn: List<MaterialEntry>, overlay: MaterialOverlay): MaterialCatalog {
+            val builtInIds = builtIn.map { it.id }.toSet()
+            val entries = builtIn.map { entry ->
+                overlay.overrides[entry.id]
+                    ?.copy(id = entry.id, source = MaterialSource.EDITED)
+                    ?: entry.copy(source = MaterialSource.BUILT_IN)
+            } + overlay.custom
+                .filterNot { it.id in builtInIds }
+                .map { it.copy(source = MaterialSource.CUSTOM) }
+            return MaterialCatalog(entries)
+        }
     }
 }
 

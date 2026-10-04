@@ -7,7 +7,10 @@ import ch.jeanrichard.nfcspoolwriter.AppContainer
 import ch.jeanrichard.nfcspoolwriter.data.nfc.MifareClassicSession
 import ch.jeanrichard.nfcspoolwriter.ui.confirm.ConfirmViewModel
 import ch.jeanrichard.nfcspoolwriter.ui.debug.TagHarnessViewModel
+import ch.jeanrichard.nfcspoolwriter.ui.materials.MaterialEditViewModel
+import ch.jeanrichard.nfcspoolwriter.ui.materials.MaterialListViewModel
 import ch.jeanrichard.nfcspoolwriter.ui.read.ReadTagViewModel
+import ch.jeanrichard.nfcspoolwriter.ui.report.CrashReportViewModel
 import ch.jeanrichard.nfcspoolwriter.ui.settings.SettingsViewModel
 import ch.jeanrichard.nfcspoolwriter.ui.spoollist.SpoolListViewModel
 import ch.jeanrichard.nfcspoolwriter.ui.write.WriteViewModel
@@ -23,6 +26,7 @@ fun settingsViewModelFactory(container: AppContainer): ViewModelProvider.Factory
             SettingsViewModel(
                 settingsRepository = container.settingsRepository,
                 spoolmanRepository = container.spoolmanRepository,
+                materialCatalogRepository = container.materialCatalogRepository,
             )
         }
     }
@@ -46,7 +50,7 @@ fun confirmViewModelFactory(
             spoolId = spoolId,
             spoolmanRepository = container.spoolmanRepository,
             fieldMappingService = container.fieldMappingService,
-            materialCatalog = container.materialCatalog,
+            materialCatalogRepository = container.materialCatalogRepository,
         )
     }
 }
@@ -54,10 +58,12 @@ fun confirmViewModelFactory(
 fun writeViewModelFactory(
     container: AppContainer,
     spoolId: Int,
+    chosenMaterialId: String?,
 ): ViewModelProvider.Factory = viewModelFactory {
     initializer {
         WriteViewModel(
             spoolId = spoolId,
+            chosenMaterialId = chosenMaterialId,
             spoolmanRepository = container.spoolmanRepository,
             fieldMappingService = container.fieldMappingService,
             tagReaderWriter = container.tagReaderWriter,
@@ -72,7 +78,7 @@ fun readTagViewModelFactory(container: AppContainer): ViewModelProvider.Factory 
         initializer {
             ReadTagViewModel(
                 tagReaderWriter = container.tagReaderWriter,
-                materialCatalog = container.materialCatalog,
+                materialCatalogRepository = container.materialCatalogRepository,
                 spoolmanRepository = container.spoolmanRepository,
                 compatibility = container.deviceCompatibility,
                 openSession = MifareClassicSession::open,
@@ -89,4 +95,28 @@ fun harnessViewModelFactory(container: AppContainer): ViewModelProvider.Factory 
                 compatibility = container.deviceCompatibility,
             )
         }
+    }
+
+fun materialListViewModelFactory(container: AppContainer): ViewModelProvider.Factory =
+    viewModelFactory {
+        initializer {
+            MaterialListViewModel(materialCatalogRepository = container.materialCatalogRepository)
+        }
+    }
+
+fun materialEditViewModelFactory(
+    container: AppContainer,
+    materialId: String?,
+): ViewModelProvider.Factory = viewModelFactory {
+    initializer {
+        MaterialEditViewModel(
+            materialId = materialId,
+            materialCatalogRepository = container.materialCatalogRepository,
+        )
+    }
+}
+
+fun crashReportViewModelFactory(container: AppContainer): ViewModelProvider.Factory =
+    viewModelFactory {
+        initializer { CrashReportViewModel(crashLog = container.crashLog) }
     }

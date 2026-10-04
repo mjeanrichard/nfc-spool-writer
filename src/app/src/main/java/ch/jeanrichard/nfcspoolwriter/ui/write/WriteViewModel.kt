@@ -11,6 +11,7 @@ import ch.jeanrichard.nfcspoolwriter.data.nfc.TagFailure
 import ch.jeanrichard.nfcspoolwriter.data.nfc.TagReadResult
 import ch.jeanrichard.nfcspoolwriter.data.nfc.TagWriteResult
 import ch.jeanrichard.nfcspoolwriter.data.nfc.toHexDump
+import ch.jeanrichard.nfcspoolwriter.data.report.ErrorReport
 import ch.jeanrichard.nfcspoolwriter.data.spoolman.SpoolmanRepository
 import ch.jeanrichard.nfcspoolwriter.data.spoolman.SpoolmanResult
 import ch.jeanrichard.nfcspoolwriter.domain.mapping.FieldMappingService
@@ -36,11 +37,14 @@ import kotlinx.coroutines.launch
  * [WriteUiState.writtenTags] is therefore not a progress counter. It exists so a tag tapped twice in
  * one session is recognised by UID and reported, rather than silently rewritten.
  *
+ * @param chosenMaterialId the material the user picked on the confirm screen, if any. Carried as an
+ *   ID rather than as the mapped fields so that this screen can still re-map from live Spoolman data.
  * @param openSession injected so the write logic is testable without a real `android.nfc.Tag`, which
  *   cannot be constructed in a unit test.
  */
 class WriteViewModel(
     private val spoolId: Int,
+    private val chosenMaterialId: String?,
     private val spoolmanRepository: SpoolmanRepository,
     private val fieldMappingService: FieldMappingService,
     private val tagReaderWriter: MifareTagReaderWriter,
@@ -91,7 +95,7 @@ class WriteViewModel(
                 }
 
                 is SpoolmanResult.Success -> when (
-                    val mapping = fieldMappingService.map(result.value)
+                    val mapping = fieldMappingService.map(result.value, chosenMaterialId)
                 ) {
                     is MappingResult.Mapped -> _state.update {
                         it.copy(loading = false, fields = mapping.fields)
@@ -227,6 +231,14 @@ class WriteViewModel(
                         text = result.failure.userMessage(),
                         retryable = result.failure.retryable,
                         partiallyWritten = result.partiallyWritten,
+                        report = ErrorReport.tagFailure(
+                            operation = "write",
+                            failure = result.failure,
+                            context = listOf(
+                                "Overwrite mode" to overwrite,
+                                "Partially written" to result.partiallyWritten,
+                            ),
+                        ),
                     )
                 )
             }
@@ -305,10 +317,14 @@ sealed interface WriteMessage {
 
     data class Info(val text: String) : WriteMessage
 
-    /** @param partiallyWritten the tag may be inconsistent and needs rewriting in full. */
+    /**
+     * @param partiallyWritten the tag may be inconsistent and needs rewriting in full.
+     * @param report what the user can send if they think this should not have happened.
+     */
     data class Failed(
         val text: String,
         val retryable: Boolean,
         val partiallyWritten: Boolean,
+        val report: ErrorReport,
     ) : WriteMessage
 }

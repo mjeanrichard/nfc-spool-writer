@@ -56,9 +56,11 @@ Please check all four before installing. Without them the app cannot do anything
 
 PRIVACY
 
-No accounts. No analytics. No crash reporting. No advertising. No third-party SDKs of any kind.
+No accounts. No analytics. No automatic crash reporting. No advertising. No third-party SDKs of any kind.
 
-The app stores exactly one thing: the Spoolman address you type into Settings. It sends requests to that address and nowhere else, and those requests only ever read — nothing is written back to your server. Nothing about your filament, your tags or your device is sent to the developer or to anyone else.
+If something goes wrong, the app can open an error report in your own email app — with addresses, tag IDs and spool data removed — and it is sent only if you send it.
+
+The app stores two things: the Spoolman address you type into Settings, and any changes you make to its material list. It sends requests to that address and nowhere else, and those requests only ever read — nothing is written back to your server. Nothing about your filament, your tags or your device is sent to the developer or to anyone else.
 
 It requests two Android permissions: NFC, and internet access to reach the server address you supply.
 

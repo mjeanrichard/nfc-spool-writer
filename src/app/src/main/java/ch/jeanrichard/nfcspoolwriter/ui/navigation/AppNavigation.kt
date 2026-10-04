@@ -30,12 +30,18 @@ import ch.jeanrichard.nfcspoolwriter.BuildConfig
 import ch.jeanrichard.nfcspoolwriter.R
 import ch.jeanrichard.nfcspoolwriter.ui.confirm.ConfirmScreen
 import ch.jeanrichard.nfcspoolwriter.ui.debug.TagHarnessScreen
+import ch.jeanrichard.nfcspoolwriter.ui.materials.MaterialEditScreen
+import ch.jeanrichard.nfcspoolwriter.ui.materials.MaterialListScreen
 import ch.jeanrichard.nfcspoolwriter.ui.read.ReadTagScreen
+import ch.jeanrichard.nfcspoolwriter.ui.report.CrashReportPrompt
 import ch.jeanrichard.nfcspoolwriter.ui.settings.SettingsScreen
 import ch.jeanrichard.nfcspoolwriter.ui.spoollist.SpoolListScreen
 import ch.jeanrichard.nfcspoolwriter.ui.write.WriteScreen
 import ch.jeanrichard.nfcspoolwriter.ui.viewmodel.confirmViewModelFactory
+import ch.jeanrichard.nfcspoolwriter.ui.viewmodel.crashReportViewModelFactory
 import ch.jeanrichard.nfcspoolwriter.ui.viewmodel.harnessViewModelFactory
+import ch.jeanrichard.nfcspoolwriter.ui.viewmodel.materialEditViewModelFactory
+import ch.jeanrichard.nfcspoolwriter.ui.viewmodel.materialListViewModelFactory
 import ch.jeanrichard.nfcspoolwriter.ui.viewmodel.readTagViewModelFactory
 import ch.jeanrichard.nfcspoolwriter.ui.viewmodel.settingsViewModelFactory
 import ch.jeanrichard.nfcspoolwriter.ui.viewmodel.spoolListViewModelFactory
@@ -56,13 +62,23 @@ object Routes {
     const val SETTINGS = "settings"
     const val READ = "read"
     const val HARNESS = "harness"
+    const val MATERIALS = "materials"
+    const val MATERIAL = "material?materialId={materialId}"
     const val CONFIRM = "confirm/{spoolId}"
-    const val WRITE = "write/{spoolId}"
+    const val WRITE = "write/{spoolId}?materialId={materialId}"
 
     const val ARG_SPOOL_ID = "spoolId"
+    const val ARG_MATERIAL_ID = "materialId"
 
     fun confirm(spoolId: Int) = "confirm/$spoolId"
-    fun write(spoolId: Int) = "write/$spoolId"
+
+    /** @param chosenMaterialId a material picked by hand on the confirm screen, or null. */
+    fun write(spoolId: Int, chosenMaterialId: String?) =
+        "write/$spoolId" + chosenMaterialId?.let { "?$ARG_MATERIAL_ID=$it" }.orEmpty()
+
+    /** @param materialId null to add a new material. */
+    fun material(materialId: String?) =
+        "material" + materialId?.let { "?$ARG_MATERIAL_ID=$it" }.orEmpty()
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -73,6 +89,8 @@ fun AppNavigation(
 ) {
     val backStackEntry by navController.currentBackStackEntryAsState()
     val route = backStackEntry?.destination?.route
+
+    CrashReportPrompt(viewModel(factory = crashReportViewModelFactory(container)))
 
     Scaffold(
         topBar = {
@@ -117,6 +135,7 @@ fun AppNavigation(
             composable(Routes.SETTINGS) {
                 SettingsScreen(
                     viewModel = viewModel(factory = settingsViewModelFactory(container)),
+                    onOpenMaterials = { navController.navigate(Routes.MATERIALS) },
                     // The single place the harness is gated: in a release build there is neither an
                     // entry point nor a registered route, so it cannot be reached at all.
                     onOpenHarness = if (BuildConfig.DEBUG) {
@@ -129,6 +148,33 @@ fun AppNavigation(
 
             composable(Routes.READ) {
                 ReadTagScreen(viewModel = viewModel(factory = readTagViewModelFactory(container)))
+            }
+
+            composable(Routes.MATERIALS) {
+                MaterialListScreen(
+                    viewModel = viewModel(factory = materialListViewModelFactory(container)),
+                    onEdit = { navController.navigate(Routes.material(it)) },
+                    onAdd = { navController.navigate(Routes.material(null)) },
+                )
+            }
+
+            composable(
+                route = Routes.MATERIAL,
+                arguments = listOf(
+                    navArgument(Routes.ARG_MATERIAL_ID) {
+                        type = NavType.StringType
+                        nullable = true
+                    }
+                ),
+            ) { entry ->
+                val materialId = entry.arguments?.getString(Routes.ARG_MATERIAL_ID)
+                MaterialEditScreen(
+                    viewModel = viewModel(
+                        key = "material-$materialId",
+                        factory = materialEditViewModelFactory(container, materialId),
+                    ),
+                    onDone = { navController.popBackStack() },
+                )
             }
 
             if (BuildConfig.DEBUG) {
@@ -151,19 +197,28 @@ fun AppNavigation(
                         key = "confirm-$spoolId",
                         factory = confirmViewModelFactory(container, spoolId),
                     ),
-                    onWrite = { navController.navigate(Routes.write(spoolId)) },
+                    onWrite = { navController.navigate(Routes.write(spoolId, it)) },
                 )
             }
 
             composable(
                 route = Routes.WRITE,
-                arguments = listOf(navArgument(Routes.ARG_SPOOL_ID) { type = NavType.IntType }),
+                arguments = listOf(
+                    navArgument(Routes.ARG_SPOOL_ID) { type = NavType.IntType },
+                    navArgument(Routes.ARG_MATERIAL_ID) {
+                        type = NavType.StringType
+                        nullable = true
+                    },
+                ),
             ) { entry ->
                 val spoolId = entry.arguments!!.getInt(Routes.ARG_SPOOL_ID)
+                val chosenMaterialId = entry.arguments?.getString(Routes.ARG_MATERIAL_ID)
                 WriteScreen(
                     viewModel = viewModel(
-                        key = "write-$spoolId",
-                        factory = writeViewModelFactory(container, spoolId),
+                        // Keyed by the material too: going back to confirm, changing the material
+                        // and writing again must not reuse fields mapped for the previous choice.
+                        key = "write-$spoolId-$chosenMaterialId",
+                        factory = writeViewModelFactory(container, spoolId, chosenMaterialId),
                     ),
                     // Back to the list, dropping confirm+write so the flow can start cleanly again.
                     onDone = {
@@ -208,6 +263,8 @@ private fun titleFor(route: String?): Int = when (route) {
     Routes.SETTINGS -> R.string.title_settings
     Routes.READ -> R.string.title_read
     Routes.HARNESS -> R.string.title_harness
+    Routes.MATERIALS -> R.string.title_materials
+    Routes.MATERIAL -> R.string.title_material
     Routes.CONFIRM -> R.string.title_confirm
     Routes.WRITE -> R.string.title_write
     else -> R.string.title_spools

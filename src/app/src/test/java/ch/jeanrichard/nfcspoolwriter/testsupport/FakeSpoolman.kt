@@ -1,12 +1,12 @@
 package ch.jeanrichard.nfcspoolwriter.testsupport
 
 import ch.jeanrichard.nfcspoolwriter.data.materials.MaterialCatalog
+import ch.jeanrichard.nfcspoolwriter.data.materials.MaterialCatalogRepository
 import ch.jeanrichard.nfcspoolwriter.data.spoolman.SpoolPage
 import ch.jeanrichard.nfcspoolwriter.data.spoolman.SpoolmanError
 import ch.jeanrichard.nfcspoolwriter.data.spoolman.SpoolmanRepository
 import ch.jeanrichard.nfcspoolwriter.data.spoolman.SpoolmanResult
 import ch.jeanrichard.nfcspoolwriter.domain.mapping.FieldMappingService
-import ch.jeanrichard.nfcspoolwriter.domain.mapping.MaterialMatcher
 import ch.jeanrichard.nfcspoolwriter.domain.model.Filament
 import ch.jeanrichard.nfcspoolwriter.domain.model.Spool
 import ch.jeanrichard.nfcspoolwriter.domain.model.Vendor
@@ -60,11 +60,19 @@ fun fakeSpoolmanRepository(
  * A real [FieldMappingService] over the real bundled catalog. Mapping is pure and already covered by
  * its own tests, so faking it here would only weaken the ViewModel tests.
  */
-fun realFieldMappingService(): FieldMappingService =
-    FieldMappingService(MaterialMatcher(realMaterialCatalog()))
+fun realFieldMappingService(
+    materialCatalogRepository: MaterialCatalogRepository = inMemoryMaterialCatalogRepository(),
+): FieldMappingService = FieldMappingService(materialCatalogRepository.catalog)
 
 fun realMaterialCatalog(): MaterialCatalog =
     MaterialCatalog.fromJson(bundledMaterialCatalogJson())
+
+/** The real built-in catalog over an in-memory store, so tests can add and edit materials. */
+fun inMemoryMaterialCatalogRepository(): MaterialCatalogRepository =
+    MaterialCatalogRepository(
+        builtIn = MaterialCatalog.parseBuiltIn(bundledMaterialCatalogJson()),
+        dataStore = InMemoryPreferencesDataStore(),
+    )
 
 fun testSpool(
     id: Int = 42,

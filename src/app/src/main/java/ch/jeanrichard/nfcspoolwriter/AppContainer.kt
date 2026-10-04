@@ -1,23 +1,28 @@
 package ch.jeanrichard.nfcspoolwriter
 
 import android.content.Context
+import android.os.Build
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.preferencesDataStore
-import ch.jeanrichard.nfcspoolwriter.data.materials.MaterialCatalog
 import ch.jeanrichard.nfcspoolwriter.data.materials.MaterialCatalogLoader
+import ch.jeanrichard.nfcspoolwriter.data.materials.MaterialCatalogRepository
 import ch.jeanrichard.nfcspoolwriter.data.nfc.AndroidNfcCapabilities
 import ch.jeanrichard.nfcspoolwriter.data.nfc.DeviceCompatibility
 import ch.jeanrichard.nfcspoolwriter.data.nfc.MifareTagReaderWriter
 import ch.jeanrichard.nfcspoolwriter.data.nfc.NfcCapabilities
 import ch.jeanrichard.nfcspoolwriter.data.nfc.TagDiagnostics
+import ch.jeanrichard.nfcspoolwriter.data.report.CrashLog
+import ch.jeanrichard.nfcspoolwriter.data.report.ErrorReportComposer
+import ch.jeanrichard.nfcspoolwriter.data.report.ReportEnvironment
 import ch.jeanrichard.nfcspoolwriter.data.settings.SettingsRepository
 import ch.jeanrichard.nfcspoolwriter.data.spoolman.SpoolmanApiClient
 import ch.jeanrichard.nfcspoolwriter.data.spoolman.SpoolmanRepository
 import ch.jeanrichard.nfcspoolwriter.data.spoolman.createSpoolmanHttpClient
 import ch.jeanrichard.nfcspoolwriter.domain.mapping.FieldMappingService
-import ch.jeanrichard.nfcspoolwriter.domain.mapping.MaterialMatcher
 import io.ktor.client.HttpClient
+import kotlinx.coroutines.flow.first
+import java.io.File
 
 private val Context.settingsDataStore: DataStore<Preferences> by preferencesDataStore(
     name = "settings"
@@ -54,13 +59,16 @@ class AppContainer(private val applicationContext: Context) {
     /** Diagnostic-only raw tag dumps, for validating tag behaviour on real hardware. */
     val tagDiagnostics: TagDiagnostics by lazy { TagDiagnostics() }
 
-    /** Parsed once from the bundled asset; the catalog is static data. */
-    val materialCatalog: MaterialCatalog by lazy {
-        MaterialCatalogLoader.load(applicationContext)
+    /** The built-in list is parsed once; the user's changes come from the settings store. */
+    val materialCatalogRepository: MaterialCatalogRepository by lazy {
+        MaterialCatalogRepository(
+            builtIn = MaterialCatalogLoader.loadBuiltIn(applicationContext),
+            dataStore = applicationContext.settingsDataStore,
+        )
     }
 
     val fieldMappingService: FieldMappingService by lazy {
-        FieldMappingService(MaterialMatcher(materialCatalog))
+        FieldMappingService(materialCatalogRepository.catalog)
     }
 
     val spoolmanApiClient: SpoolmanApiClient by lazy {
@@ -69,5 +77,30 @@ class AppContainer(private val applicationContext: Context) {
 
     val spoolmanRepository: SpoolmanRepository by lazy {
         SpoolmanRepository(spoolmanApiClient, settingsRepository)
+    }
+
+    /**
+     * The one exception to staying untouched in `Application.onCreate`: the crash handler needs it
+     * before anything else can fail, and it is no more than a file path.
+     *
+     * In no-backup storage, because a crash belongs to this install and must not follow a restore.
+     */
+    val crashLog: CrashLog by lazy {
+        CrashLog(
+            file = File(applicationContext.noBackupFilesDir, "crash-report.txt"),
+            appVersion = BuildConfig.VERSION_NAME,
+        )
+    }
+
+    val errorReportComposer: ErrorReportComposer by lazy {
+        ErrorReportComposer(
+            environment = ReportEnvironment(
+                appVersion = BuildConfig.VERSION_NAME,
+                androidRelease = Build.VERSION.RELEASE,
+                sdkInt = Build.VERSION.SDK_INT,
+                device = "${Build.MANUFACTURER} ${Build.MODEL}",
+            ),
+            serverAddresses = { listOfNotNull(settingsRepository.spoolmanBaseUrl.first()) },
+        )
     }
 }

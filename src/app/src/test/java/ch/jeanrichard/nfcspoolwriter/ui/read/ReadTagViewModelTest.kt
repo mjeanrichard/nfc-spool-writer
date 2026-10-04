@@ -1,6 +1,7 @@
 package ch.jeanrichard.nfcspoolwriter.ui.read
 
 import android.nfc.Tag
+import ch.jeanrichard.nfcspoolwriter.data.materials.MaterialCatalogRepository
 import ch.jeanrichard.nfcspoolwriter.data.nfc.DeviceCompatibility
 import ch.jeanrichard.nfcspoolwriter.data.nfc.FakeMifareSession
 import ch.jeanrichard.nfcspoolwriter.data.nfc.KeyDerivation
@@ -15,7 +16,7 @@ import ch.jeanrichard.nfcspoolwriter.domain.tagcodec.TagCodec
 import ch.jeanrichard.nfcspoolwriter.testsupport.MainDispatcherRule
 import ch.jeanrichard.nfcspoolwriter.testsupport.fakeSpoolmanRepository
 import ch.jeanrichard.nfcspoolwriter.testsupport.hexToBytes
-import ch.jeanrichard.nfcspoolwriter.testsupport.realMaterialCatalog
+import ch.jeanrichard.nfcspoolwriter.testsupport.inMemoryMaterialCatalogRepository
 import ch.jeanrichard.nfcspoolwriter.testsupport.testSpool
 import io.mockk.every
 import io.mockk.mockk
@@ -56,12 +57,13 @@ class ReadTagViewModelTest {
         ioDispatcher: CoroutineDispatcher = testDispatcher,
         onOpenSession: () -> Unit = {},
         now: () -> Long = { 0L },
+        materials: MaterialCatalogRepository = inMemoryMaterialCatalogRepository(),
     ) = ReadTagViewModel(
         tagReaderWriter = MifareTagReaderWriter(
             ioDispatcher = ioDispatcher,
             retryDelayMillis = 0,
         ),
-        materialCatalog = realMaterialCatalog(),
+        materialCatalogRepository = materials,
         spoolmanRepository = fakeSpoolmanRepository(spools, getError = getError),
         compatibility = compatibility,
         openSession = {
@@ -155,6 +157,23 @@ class ReadTagViewModelTest {
         assertEquals("99999", summary.materialId)
     }
 
+    /** A material the user added is named on a read tag, like any built-in one. */
+    @Test
+    fun `a custom material id is named from the user's catalog`() = runTest {
+        val materials = inMemoryMaterialCatalogRepository()
+        materials.save(
+            ch.jeanrichard.nfcspoolwriter.domain.model.MaterialEntry(
+                id = "20001", name = "Sunlu PLA+", brand = "Sunlu", type = "PLA",
+            )
+        )
+        val vm = viewModel(writtenSession(fields(materialId = "20001")), materials = materials)
+
+        vm.onTagDiscovered(tag)
+
+        val summary = (vm.state.value.outcome as ReadOutcome.Written).tag
+        assertEquals("Sunlu PLA+", summary.materialName)
+    }
+
     @Test
     fun `a tag keyed by this format whose payload does not decode reads as corrupt`() = runTest {
         // Keyed with the derived key, but the content is not something TagCodec produced.
@@ -200,7 +219,11 @@ class ReadTagViewModelTest {
 
         vm.onTagDiscovered(tag)
 
-        assertTrue((vm.state.value.outcome as ReadOutcome.Failed).retryable)
+        val outcome = vm.state.value.outcome as ReadOutcome.Failed
+        assertTrue(outcome.retryable)
+        val report = outcome.report!!.details
+        assertTrue(report, report.startsWith("Operation: read\nFailure: TagLost\n"))
+        assertTrue(report, report.contains("fake: tag out of range"))
     }
 
     @Test
@@ -212,6 +235,7 @@ class ReadTagViewModelTest {
         val outcome = vm.state.value.outcome as ReadOutcome.Failed
         assertTrue(outcome.text.contains("MIFARE Classic"))
         assertEquals(false, outcome.retryable)
+        assertNull("a wrong kind of tag is not worth a report", outcome.report)
     }
 
     // --- Spoolman lookup ---------------------------------------------------------------------

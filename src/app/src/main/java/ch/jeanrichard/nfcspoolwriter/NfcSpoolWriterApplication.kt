@@ -2,6 +2,7 @@ package ch.jeanrichard.nfcspoolwriter
 
 import android.app.Application
 import android.content.Context
+import ch.jeanrichard.nfcspoolwriter.data.report.CrashRecordingHandler
 
 class NfcSpoolWriterApplication : Application() {
 
@@ -11,6 +12,7 @@ class NfcSpoolWriterApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         container = AppContainer(applicationContext)
+        CrashRecordingHandler.install(container.crashLog)
     }
 }
 

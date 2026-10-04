@@ -1,9 +1,12 @@
 package ch.jeanrichard.nfcspoolwriter.domain.mapping
 
+import ch.jeanrichard.nfcspoolwriter.data.materials.MaterialCatalog
 import ch.jeanrichard.nfcspoolwriter.domain.model.MappedFields
 import ch.jeanrichard.nfcspoolwriter.domain.model.Spool
 import ch.jeanrichard.nfcspoolwriter.domain.model.WeightBucket
 import ch.jeanrichard.nfcspoolwriter.domain.model.isHexDigit
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 
 /**
  * Turns a Spoolman [Spool] into the [MappedFields] that get written to a tag.
@@ -12,15 +15,34 @@ import ch.jeanrichard.nfcspoolwriter.domain.model.isHexDigit
  * (REQUIREMENTS.md §4). Every approximation it makes is reported in [MappingResult.notes] so the
  * confirm screen can show the user what was assumed before it's burned onto a tag — that visibility is
  * the whole reason the confirm step exists.
+ *
+ * @param catalogs the current material catalog. Read afresh for every mapping rather than captured at
+ *   construction, because the user can edit the catalog while the app runs and the next write must
+ *   see that.
  */
 class FieldMappingService(
-    private val materialMatcher: MaterialMatcher,
+    private val catalogs: Flow<MaterialCatalog>,
 ) {
 
-    fun map(spool: Spool): MappingResult {
+    /**
+     * @param chosenMaterialId a catalog ID the user picked by hand on the confirm screen. It replaces
+     *   automatic matching entirely, and fails closed like a bad automatic match if the entry has
+     *   since disappeared from the catalog.
+     */
+    suspend fun map(spool: Spool, chosenMaterialId: String? = null): MappingResult {
         val notes = mutableListOf<String>()
+        val catalog = catalogs.first()
 
-        val materialMatch = materialMatcher.match(spool.filament)
+        val materialMatch = if (chosenMaterialId != null) {
+            catalog.findById(chosenMaterialId)
+                ?.let { MaterialMatch.Chosen(it) }
+                ?: MaterialMatch.NoMatch(
+                    spool.filament.material,
+                    "The chosen material ($chosenMaterialId) is no longer in the material list",
+                )
+        } else {
+            MaterialMatcher(catalog).match(spool.filament)
+        }
         if (materialMatch is MaterialMatch.Fallback) notes += materialMatch.reason
         val material = materialMatch.entry
             ?: return MappingResult.Unmappable(

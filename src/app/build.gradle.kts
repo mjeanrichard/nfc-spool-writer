@@ -104,8 +104,9 @@ android {
             signingConfig = signingConfigs.findByName("release")
 
             // R8 stays off for the first store release. Ktor + kotlinx.serialization are the
-            // classic source of release-only reflection failures, and with no crash reporting in
-            // the app there is nothing to catch one in the field. Revisit once 1.0 is stable.
+            // classic source of release-only reflection failures, and a crash only reaches the
+            // developer if a user chooses to email the report, so one in the field could go unseen
+            // for a long time. Revisit once 1.0 is stable.
             optimization {
                 enable = false
             }

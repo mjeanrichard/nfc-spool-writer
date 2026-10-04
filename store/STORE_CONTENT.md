@@ -4,7 +4,7 @@ Answers for every section of **App content**, with the code evidence behind each
 repo so a future change that invalidates an answer shows up in review rather than silently making a
 filed declaration untrue.
 
-Verified against the working tree on 2026-08-07.
+Verified against the working tree on 2026-10-04.
 
 ---
 
@@ -14,9 +14,11 @@ Verified against the working tree on 2026-08-07.
 |---|---|
 | Two permissions only, no `AD_ID` | [AndroidManifest.xml:5-6](../src/app/src/main/AndroidManifest.xml#L5-L6) — `NFC`, `INTERNET` |
 | No analytics, ads, crash reporting or tracking SDK | Full dependency list in [build.gradle.kts](../src/app/build.gradle.kts) is AndroidX + Ktor + kotlinx only |
+| Error reports are user-sent emails, never transmitted by the app | [ErrorReportUi.kt](../src/app/src/main/java/ch/jeanrichard/nfcspoolwriter/ui/report/ErrorReportUi.kt) — the report is handed to the user's mail app as an `ACTION_SENDTO`/`ACTION_SEND` draft; the app makes no request of its own |
 | One outbound call site, GET-only | [SpoolmanApiClient.kt:105](../src/app/src/main/java/ch/jeanrichard/nfcspoolwriter/data/spoolman/SpoolmanApiClient.kt#L105) — `httpClient.get(url)`; endpoints are `GET /api/v1/health`, `/api/v1/spool`, `/api/v1/spool/{id}` |
 | Destination host is user-supplied, no developer backend | [SettingsRepository.kt](../src/app/src/main/java/ch/jeanrichard/nfcspoolwriter/data/settings/SettingsRepository.kt) — no default URL is shipped |
-| One persisted value, local only | `stringPreferencesKey("spoolman_base_url")` is the only DataStore key; no file, DB or SharedPreferences writes anywhere |
+| One persisted value, local only | `stringPreferencesKey("spoolman_base_url")` is the only DataStore key; no DB or SharedPreferences writes anywhere |
+| One local file, excluded from backup | The last crash's stack trace, in `noBackupFilesDir` ([CrashLog.kt](../src/app/src/main/java/ch/jeanrichard/nfcspoolwriter/data/report/CrashLog.kt)); deleted once the user answers the report prompt |
 | No accounts or credentials | Spoolman has no auth of its own; the app has no login screen |
 
 ---
@@ -89,6 +91,10 @@ store listing if a reviewer wants them.
   - Requests go solely to that user-supplied host and are read-only `GET`s.
   - Nothing about scanned or written tags is stored or transmitted.
   - There is no developer server to send anything to.
+  - Error reports are never transmitted by the app. It hands a redacted draft to the user's own mail
+    app, and only the user sending it from there moves anything off the device. That is the user
+    writing to the developer through an app of their choosing, not the app collecting data, so it
+    does not change this answer.
 
 - **Advertising ID** → **not used.** The `AD_ID` permission is absent from the manifest.
 
@@ -114,7 +120,8 @@ collection, and does not change this answer. See
 
 The answers above are true of the working tree as verified. Re-check if any of these change:
 
-- A crash-reporting or analytics SDK is added → Data safety is no longer "No".
+- A crash-reporting or analytics SDK is added, or error reports start being sent by the app rather
+  handed to the user's mail app → Data safety is no longer "No".
 - A non-`GET` request or a developer-operated endpoint appears → Data safety changes.
 - A second DataStore key holding anything user-identifying is added.
 - The `com.nxp.mifare` requirement is relaxed → the App access text stops being accurate.
