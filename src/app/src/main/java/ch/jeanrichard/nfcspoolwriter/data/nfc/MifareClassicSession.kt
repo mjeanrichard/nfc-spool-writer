@@ -1,6 +1,7 @@
 package ch.jeanrichard.nfcspoolwriter.data.nfc
 
 import android.nfc.Tag
+import android.nfc.TagLostException
 import android.nfc.tech.MifareClassic
 import java.io.IOException
 
@@ -17,25 +18,21 @@ class MifareClassicSession private constructor(
 
     override val uid: ByteArray get() = tech.tag.id
 
-    override fun connect() = tech.connect()
+    override fun connect() = tagCall { tech.connect() }
 
     override fun reconnect() {
         // close() then connect() is the documented way to reset a tag technology connection; the
         // close is tolerant because the tag may already have dropped.
-        try {
-            tech.close()
-        } catch (_: IOException) {
-            // Already closed or gone; connect() below reports the real problem.
-        }
-        tech.connect()
+        close()
+        connect()
     }
 
     override fun authenticateSectorWithKeyA(sector: Int, key: ByteArray): Boolean =
-        tech.authenticateSectorWithKeyA(sector, key)
+        tagCall { tech.authenticateSectorWithKeyA(sector, key) }
 
-    override fun readBlock(block: Int): ByteArray = tech.readBlock(block)
+    override fun readBlock(block: Int): ByteArray = tagCall { tech.readBlock(block) }
 
-    override fun writeBlock(block: Int, data: ByteArray) = tech.writeBlock(block, data)
+    override fun writeBlock(block: Int, data: ByteArray) = tagCall { tech.writeBlock(block, data) }
 
     /**
      * Never throws: close runs on failure paths where the tag is often already gone, and an
@@ -43,10 +40,25 @@ class MifareClassicSession private constructor(
      */
     override fun close() {
         try {
-            tech.close()
+            tagCall { tech.close() }
         } catch (_: IOException) {
             // The tag was already out of range; nothing to release.
         }
+    }
+
+    /**
+     * Reports a stale tag handle as the lost tag it is.
+     *
+     * Once a tag leaves the field, Android invalidates its `Tag` object, and any further call on it
+     * throws `SecurityException` ("Tag ... is out of date") instead of [TagLostException]. That
+     * happens whenever a handle outlives its tap — confirming an overwrite after lifting the phone
+     * away, for one. [MifareSession] promises an [IOException] for a lost tag, and callers rely on
+     * that to turn it into a retryable failure rather than a crash.
+     */
+    private inline fun <T> tagCall(call: () -> T): T = try {
+        call()
+    } catch (e: SecurityException) {
+        throw TagLostException(e.message).apply { initCause(e) }
     }
 
     companion object {

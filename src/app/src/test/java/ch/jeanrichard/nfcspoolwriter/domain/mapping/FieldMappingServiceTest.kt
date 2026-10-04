@@ -7,15 +7,17 @@ import ch.jeanrichard.nfcspoolwriter.domain.model.Spool
 import ch.jeanrichard.nfcspoolwriter.domain.model.Vendor
 import ch.jeanrichard.nfcspoolwriter.domain.model.WeightBucket
 import ch.jeanrichard.nfcspoolwriter.testsupport.bundledMaterialCatalogJson
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class FieldMappingServiceTest {
 
-    private val service = FieldMappingService(
-        MaterialMatcher(MaterialCatalog.fromJson(bundledMaterialCatalogJson()))
-    )
+    private val catalog = MaterialCatalog.fromJson(bundledMaterialCatalogJson())
+
+    private val service = FieldMappingService(flowOf(catalog))
 
     private fun spool(
         id: Int = 42,
@@ -37,8 +39,11 @@ class FieldMappingServiceTest {
         ),
     )
 
-    private fun mapped(spool: Spool): MappingResult.Mapped =
-        service.map(spool) as MappingResult.Mapped
+    private fun map(spool: Spool, chosenMaterialId: String? = null): MappingResult =
+        runBlocking { service.map(spool, chosenMaterialId) }
+
+    private fun mapped(spool: Spool, chosenMaterialId: String? = null): MappingResult.Mapped =
+        map(spool, chosenMaterialId) as MappingResult.Mapped
 
     // --- Happy path ------------------------------------------------------------------------
 
@@ -173,7 +178,7 @@ class FieldMappingServiceTest {
 
     @Test
     fun `an unmappable material makes the whole spool unmappable`() {
-        val result = service.map(spool(material = "PEEK"))
+        val result = map(spool(material = "PEEK"))
 
         assertTrue("expected Unmappable, was $result", result is MappingResult.Unmappable)
         assertTrue((result as MappingResult.Unmappable).reason.contains("PEEK"))
@@ -182,7 +187,7 @@ class FieldMappingServiceTest {
     /** Failing on material must not be masked by the other fields having valid defaults. */
     @Test
     fun `a spool with no material at all is unmappable`() {
-        assertTrue(service.map(spool(material = null)) is MappingResult.Unmappable)
+        assertTrue(map(spool(material = null)) is MappingResult.Unmappable)
     }
 
     // --- Spool ID --------------------------------------------------------------------------
@@ -219,8 +224,52 @@ class FieldMappingServiceTest {
      */
     @Test
     fun `a spool id beyond six digits is rejected rather than silently truncated`() {
-        val error = runCatching { service.map(spool(id = 1_000_000)) }.exceptionOrNull()
+        val error = runCatching { map(spool(id = 1_000_000)) }.exceptionOrNull()
 
         assertTrue("expected a failure, got none", error is IllegalArgumentException)
+    }
+
+    // --- A material chosen by hand ---------------------------------------------------------
+
+    @Test
+    fun `a chosen material replaces the automatic match`() {
+        val result = mapped(spool(material = "PLA"), chosenMaterialId = "01001")
+
+        assertEquals("01001", result.fields.filamentCatalogId)
+        assertTrue(result.materialMatch is MaterialMatch.Chosen)
+        assertEquals(emptyList<String>(), result.notes)
+    }
+
+    /** The whole point of choosing: a spool the matcher gives up on can still be written. */
+    @Test
+    fun `a chosen material makes an unmappable spool writable`() {
+        val result = mapped(spool(material = "PEEK"), chosenMaterialId = "00021")
+
+        assertEquals("00021", result.fields.filamentCatalogId)
+    }
+
+    @Test
+    fun `a chosen material that no longer exists fails closed`() {
+        val result = map(spool(material = "PLA"), chosenMaterialId = "99999")
+
+        assertTrue(result is MappingResult.Unmappable)
+        assertTrue((result as MappingResult.Unmappable).reason.contains("99999"))
+        assertEquals("PLA", (result.materialMatch as MaterialMatch.NoMatch).requested)
+    }
+
+    /** The catalog is read per call, so an edit made while the app runs reaches the next mapping. */
+    @Test
+    fun `mapping follows the current catalog`() = runBlocking {
+        val catalogs = kotlinx.coroutines.flow.MutableStateFlow(catalog)
+        val service = FieldMappingService(catalogs)
+        val custom = ch.jeanrichard.nfcspoolwriter.domain.model.MaterialEntry(
+            id = "20001", name = "Generic PEEK", brand = "Generic", type = "PEEK",
+        )
+
+        assertTrue(service.map(spool(material = "PEEK")) is MappingResult.Unmappable)
+        catalogs.value = MaterialCatalog(catalog.all + custom)
+
+        val result = service.map(spool(material = "PEEK")) as MappingResult.Mapped
+        assertEquals("20001", result.fields.filamentCatalogId)
     }
 }

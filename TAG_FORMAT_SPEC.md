@@ -430,7 +430,7 @@ Stock Creality firmware may differ; writing both fields costs nothing and covers
 
 ## 15. Out of Scope Here
 
-- The material catalog itself (which IDs map to which materials) — bundled data, see
-  `assets/materials.json`.
+- The material catalog itself (which IDs map to which materials) — data, not format: the built-in
+  list is `assets/materials.json`, and the app lets the user extend and edit it.
 - Spoolman-side field mapping: weight rounding, material fallback, supplier-ID choice — see
   REQUIREMENTS.md §4 and §8.

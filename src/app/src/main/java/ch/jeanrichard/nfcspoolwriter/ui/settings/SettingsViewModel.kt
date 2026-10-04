@@ -2,9 +2,11 @@ package ch.jeanrichard.nfcspoolwriter.ui.settings
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import ch.jeanrichard.nfcspoolwriter.data.materials.MaterialCatalogRepository
 import ch.jeanrichard.nfcspoolwriter.data.settings.SettingsRepository
 import ch.jeanrichard.nfcspoolwriter.data.spoolman.SpoolmanRepository
 import ch.jeanrichard.nfcspoolwriter.data.spoolman.SpoolmanResult
+import ch.jeanrichard.nfcspoolwriter.domain.model.MaterialSource
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -22,6 +24,7 @@ import kotlinx.coroutines.launch
 class SettingsViewModel(
     private val settingsRepository: SettingsRepository,
     private val spoolmanRepository: SpoolmanRepository,
+    materialCatalogRepository: MaterialCatalogRepository,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(SettingsUiState())
@@ -31,6 +34,21 @@ class SettingsViewModel(
         viewModelScope.launch {
             val saved = settingsRepository.spoolmanBaseUrl.first()
             _state.update { it.copy(url = saved.orEmpty(), savedUrl = saved, loaded = true) }
+        }
+        // Collected rather than read once: the user comes back here from the material list, and the
+        // counts must reflect what they just did there.
+        viewModelScope.launch {
+            materialCatalogRepository.catalog.collect { catalog ->
+                _state.update {
+                    it.copy(
+                        materials = MaterialSummary(
+                            total = catalog.all.size,
+                            custom = catalog.all.count { e -> e.source == MaterialSource.CUSTOM },
+                            edited = catalog.all.count { e -> e.source == MaterialSource.EDITED },
+                        )
+                    )
+                }
+            }
         }
     }
 
@@ -80,6 +98,8 @@ data class SettingsUiState(
     val testing: Boolean = false,
     val testResult: TestResult? = null,
     val justSaved: Boolean = false,
+    /** Null until the catalog has been read. */
+    val materials: MaterialSummary? = null,
 ) {
     val hasUnsavedChanges: Boolean get() = loaded && url.trim().trimEnd('/') != savedUrl.orEmpty()
 }
@@ -88,3 +108,10 @@ sealed interface TestResult {
     data object Succeeded : TestResult
     data class Failed(val message: String) : TestResult
 }
+
+/** Headline numbers for the material-catalog row. */
+data class MaterialSummary(
+    val total: Int,
+    val custom: Int,
+    val edited: Int,
+)

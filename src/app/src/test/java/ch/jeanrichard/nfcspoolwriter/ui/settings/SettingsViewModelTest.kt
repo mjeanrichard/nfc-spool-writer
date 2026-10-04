@@ -1,10 +1,13 @@
 package ch.jeanrichard.nfcspoolwriter.ui.settings
 
+import ch.jeanrichard.nfcspoolwriter.data.materials.MaterialCatalogRepository
 import ch.jeanrichard.nfcspoolwriter.data.settings.SettingsRepository
 import ch.jeanrichard.nfcspoolwriter.data.spoolman.SpoolmanError
+import ch.jeanrichard.nfcspoolwriter.domain.model.MaterialEntry
 import ch.jeanrichard.nfcspoolwriter.testsupport.InMemoryPreferencesDataStore
 import ch.jeanrichard.nfcspoolwriter.testsupport.MainDispatcherRule
 import ch.jeanrichard.nfcspoolwriter.testsupport.fakeSpoolmanRepository
+import ch.jeanrichard.nfcspoolwriter.testsupport.inMemoryMaterialCatalogRepository
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -23,7 +26,8 @@ class SettingsViewModelTest {
     private fun viewModel(
         settings: SettingsRepository = settings(),
         testError: SpoolmanError? = null,
-    ) = SettingsViewModel(settings, fakeSpoolmanRepository(testError = testError))
+        materials: MaterialCatalogRepository = inMemoryMaterialCatalogRepository(),
+    ) = SettingsViewModel(settings, fakeSpoolmanRepository(testError = testError), materials)
 
     @Test
     fun `starts empty when nothing is configured`() = runTest {
@@ -32,6 +36,23 @@ class SettingsViewModelTest {
         assertEquals("", state.url)
         assertNull(state.savedUrl)
         assertTrue(state.loaded)
+    }
+
+    @Test
+    fun `summarises the material catalog`() = runTest {
+        assertEquals(MaterialSummary(total = 52, custom = 0, edited = 0), viewModel().state.value.materials)
+    }
+
+    /** The row must reflect what the user just did on the material screens. */
+    @Test
+    fun `the material summary follows catalog changes`() = runTest {
+        val materials = inMemoryMaterialCatalogRepository()
+        val vm = viewModel(materials = materials)
+
+        materials.save(MaterialEntry(id = "20001", name = "Sunlu PLA+", brand = "Sunlu", type = "PLA"))
+        materials.save(materials.catalog.first().findById("17001")!!.copy(type = "PLA"))
+
+        assertEquals(MaterialSummary(total = 53, custom = 1, edited = 1), vm.state.value.materials)
     }
 
     @Test

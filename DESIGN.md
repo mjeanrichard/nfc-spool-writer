@@ -31,7 +31,7 @@ app/
 │   └── tagcodec/         TagCodec (structured fields <-> 96-char payload string)
 ├── data/
 │   ├── spoolman/         SpoolmanApiClient (Ktor), DTOs, repository
-│   ├── materials/         MaterialCatalog (bundled materials.json) + loader
+│   ├── materials/         MaterialCatalog (built-in materials.json + user overlay) + repository
 │   ├── nfc/               KeyDerivation, PayloadCipher, MifareTagReaderWriter
 │   └── settings/          DataStore-backed settings repository
 └── AppContainer.kt      Manual DI wiring
@@ -91,24 +91,35 @@ WriteScreen
 - **`domain/mapping/FieldMappingService`** — Spoolman `Spool`/`Filament`/`Vendor` → `MappedFields`.
   Owns the weight-bucket rounding, the material→filament-ID lookup (via `MaterialCatalog`), and
   vendor-ID defaulting. Pure, unit testable with fixture Spoolman payloads.
-- **`data/materials/MaterialCatalog`** — the bundled `materials.json` catalog in memory; lookup by ID,
-  by generic material type, and by exact catalog name. `domain/mapping/MaterialMatcher` owns the
-  documented fallback chain and fails closed when nothing matches (`DEC-04`).
+- **`data/materials/MaterialCatalog`** — the material catalog in memory; lookup by ID, by generic
+  material type, and by exact catalog name. It is the built-in `materials.json` list with the user's
+  changes applied: `MaterialCatalogRepository` persists those as a `MaterialOverlay` (added entries,
+  plus overrides keyed by built-in ID) and emits a fresh merged catalog whenever they change, so an
+  app update shipping new firmware IDs never disturbs what the user edited (`DEC-09`).
+  `domain/mapping/MaterialMatcher` owns the documented fallback chain and fails closed when nothing
+  matches (`DEC-04`).
 - **`data/spoolman/SpoolmanApiClient`** — thin HTTP client for `GET /api/v1/spool` (search/list,
   using `filament.material`, `filament.vendor.name`, `location`, etc. as needed) and
   `GET /api/v1/spool/{id}`. No auth headers needed against Spoolman itself — confirmed from its
   source, it has no built-in API authentication. (If a user's instance sits behind a reverse proxy
   requiring auth, that's explicitly out of scope per `DEC-06`, unless it becomes a real blocker.)
+- **`data/report/`** — error reports (`DEC-10`). `CrashLog` + `CrashRecordingHandler` keep the last
+  uncaught exception on the device; `ErrorReport.tagFailure` describes a failed tag operation;
+  `ReportRedactor` strips addresses, tag IDs and echoed input; `ErrorReportComposer` assembles the
+  email draft. All pure JVM and unit tested — only the hand-off to the mail app in
+  `ui/report/ErrorReportUi` is not.
 
 ### 1.3 Libraries
 
 - **Compose + Navigation-Compose** — UI.
 - **Kotlin Coroutines/Flow** — async NFC callbacks, network calls, UI state.
 - **Ktor client (OkHttp engine)** — Spoolman HTTP calls.
-- **kotlinx.serialization** — JSON (de)serialization for both Spoolman DTOs and the bundled
-  material catalog.
-- **Jetpack DataStore (Preferences)** — settings storage (Spoolman URL). No Room/SQLite needed —
-  there's no local write-history log and no offline spool cache in v1 (per `REQ-08`, `REQ-16`).
+- **kotlinx.serialization** — JSON (de)serialization for the Spoolman DTOs, the built-in material
+  catalog and the user's changes to it.
+- **Jetpack DataStore (Preferences)** — settings storage: the Spoolman URL, and the user's material
+  changes as one JSON value. No Room/SQLite needed — there's no local write-history log and no
+  offline spool cache in v1 (per `REQ-08`, `REQ-16`), and the material overlay is a few kilobytes
+  that change only when the user edits a material.
 - **JUnit + kotlinx-coroutines-test** — unit tests, including ViewModel state-flow tests.
 - **MockK** — mocks `SpoolmanRepository` in ViewModel tests, so no interface or `open` modifier exists
   purely to serve tests. `MifareSession` has a hand-written in-memory fake instead, since it needs
@@ -145,9 +156,10 @@ Settled choices that are not obvious from the code, with the reasoning that woul
   in `FieldMappingService`.
 - `DEC-04` — **Unmappable materials fail closed.** A wrong material ID makes the printer apply wrong
   nozzle and bed temperatures with no warning, so a material with no exact match and no defensible
-  same-family substitute is reported to the user rather than guessed at. The bundled catalog
+  same-family substitute is reported to the user rather than guessed at. The built-in catalog
   (`assets/materials.json`, 52 entries, 27 of them `Generic`) is broad enough that exact type matches
-  are the common case and fallbacks the exception.
+  are the common case and fallbacks the exception. When it does fail, the confirm screen lets the
+  user pick the material by hand for that one write — an explicit choice is the user's, not a guess.
 - `DEC-05` — **The weight bucket encodes the spool's nominal full weight**, not its remaining weight
   — the bucket describes the spool's size, which does not change as filament is consumed.
 - `DEC-06` — **Spoolman needs no credentials.** Spoolman has no built-in authentication, so no token
@@ -173,3 +185,21 @@ Settled choices that are not obvious from the code, with the reasoning that woul
   The consequence to be aware of: on a tag rewritten this way the serial and the reserve name different
   spools. `DEC-01`'s duplicate is not a second opinion about the spool ID, and no code may treat it as
   one — the reserve is the answer.
+- `DEC-09` — **The material catalog is built-in data plus a user overlay, not a copied database.**
+  The user can add materials (a firmware ID the shipped list lacks) and edit built-in ones (fix a
+  family so Spoolman matches, mark one deprecated), and only that delta is stored. An update shipping
+  new firmware IDs therefore reaches every user untouched by their edits, and reverting one entry is
+  dropping its override. A built-in entry's ID cannot be changed — the firmware defines what the
+  number means, so renumbering would be adding a different material; edits back to the shipped
+  values remove the override rather than storing an identical copy. A material chosen by hand on the
+  confirm screen is for that write only and travels to the write screen as an ID, so the write still
+  re-maps from live Spoolman data; remembering such choices as reusable mapping rules is a later step.
+- `DEC-10` — **Errors are reported by email the user sends, never by the app.** After a crash the
+  next launch offers the saved stack trace once; a tag failure offers it from the error card. Either
+  way the app opens a draft in the user's own mail app and sends nothing itself, which keeps the
+  privacy policy's "no data leaves the device" promise and needs no SDK, backend or permission
+  (`NFR-13`). Redaction happens when the draft is composed rather than when a crash is recorded: it
+  is the single point text leaves the app, and the only point the configured Spoolman address is at
+  hand to remove by name. The rules over-redact on purpose — a redacted exception message is still a
+  clue beside its stack trace, a leaked address cannot be recalled. The cost is reach: only users
+  who choose to send are heard from, so Play's Android vitals remain the complement for Play installs.

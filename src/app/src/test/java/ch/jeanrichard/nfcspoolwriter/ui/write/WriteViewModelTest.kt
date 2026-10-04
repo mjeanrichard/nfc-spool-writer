@@ -17,6 +17,7 @@ import ch.jeanrichard.nfcspoolwriter.testsupport.realFieldMappingService
 import ch.jeanrichard.nfcspoolwriter.testsupport.testSpool
 import io.mockk.mockk
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -60,8 +61,10 @@ class WriteViewModelTest {
         compatibility: DeviceCompatibility = DeviceCompatibility.Compatible,
         /** Overridable for the case where one tag must open as two different sessions. */
         openSession: (Tag) -> MifareSession? = { sessions[it] },
+        chosenMaterialId: String? = null,
     ) = WriteViewModel(
         spoolId = spool.id,
+        chosenMaterialId = chosenMaterialId,
         spoolmanRepository = fakeSpoolmanRepository(listOf(spool), getError = getError),
         fieldMappingService = realFieldMappingService(),
         tagReaderWriter = readerWriter,
@@ -79,6 +82,22 @@ class WriteViewModelTest {
         assertEquals(false, state.loading)
         assertEquals("00001", state.fields?.filamentCatalogId)
         assertTrue(state.canScan)
+    }
+
+    /** The confirm screen's choice must reach the tag, not the automatic match. */
+    @Test
+    fun `maps with the material chosen on the confirm screen`() = runTest {
+        val vm = viewModel(emptyMap(), chosenMaterialId = "01001")
+
+        assertEquals("01001", vm.state.value.fields?.filamentCatalogId)
+    }
+
+    @Test
+    fun `a chosen material that no longer exists blocks scanning`() = runTest {
+        val vm = viewModel(emptyMap(), chosenMaterialId = "99999")
+
+        assertNull(vm.state.value.fields)
+        assertTrue(vm.state.value.loadError!!.contains("99999"))
     }
 
     @Test
@@ -481,6 +500,12 @@ class WriteViewModelTest {
         val message = vm.state.value.message as WriteMessage.Failed
         assertTrue(message.partiallyWritten)
         assertEquals(0, vm.state.value.writtenTags.size)
+        assertTrue(
+            message.report.details,
+            message.report.details.startsWith(
+                "Operation: write\nFailure: TagLost\nOverwrite mode: Ask\nPartially written: true\n"
+            ),
+        )
     }
 
     /** A failure leaves scanning armed — tapping again is the recovery, so it must stay possible. */
@@ -521,6 +546,6 @@ class WriteViewModelTest {
 
     /** The fields the default test spool maps to, for pre-writing a tag in the overwrite tests. */
     private fun testMappedFields() =
-        (realFieldMappingService().map(testSpool())
+        (runBlocking { realFieldMappingService().map(testSpool()) }
             as ch.jeanrichard.nfcspoolwriter.domain.mapping.MappingResult.Mapped).fields
 }

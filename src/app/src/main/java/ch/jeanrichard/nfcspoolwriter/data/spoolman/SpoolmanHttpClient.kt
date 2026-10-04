@@ -9,7 +9,8 @@ import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.json.Json
 
 /**
- * JSON configuration shared by the Spoolman API client and the bundled material catalog.
+ * JSON configuration shared by the Spoolman API client and the material catalog (built-in file and
+ * stored user changes).
  *
  * [ignoreUnknownKeys] matters here: Spoolman adds fields across releases, and the app must keep
  * working against a newer server than it was built for rather than failing to deserialize.

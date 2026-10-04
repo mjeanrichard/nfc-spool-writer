@@ -28,8 +28,10 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ch.jeanrichard.nfcspoolwriter.R
 import ch.jeanrichard.nfcspoolwriter.data.nfc.DeviceCompatibility
+import ch.jeanrichard.nfcspoolwriter.data.report.ErrorReport
 import ch.jeanrichard.nfcspoolwriter.ui.confirm.FieldRow
 import ch.jeanrichard.nfcspoolwriter.ui.nfc.NfcReaderEffect
+import ch.jeanrichard.nfcspoolwriter.ui.report.ReportProblemButton
 import ch.jeanrichard.nfcspoolwriter.ui.spoollist.OPAQUE
 import ch.jeanrichard.nfcspoolwriter.ui.spoollist.SpoolSummary
 
@@ -106,6 +108,7 @@ fun ReadTagScreen(
                 body = outcome.text,
                 isError = true,
                 hint = if (outcome.retryable) stringResource(R.string.write_retry_hint) else null,
+                report = outcome.report,
             )
 
             is ReadOutcome.Written -> {
@@ -126,6 +129,7 @@ private fun VerdictCard(
     body: String,
     isError: Boolean = false,
     hint: String? = null,
+    report: ErrorReport? = null,
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(
@@ -140,6 +144,7 @@ private fun VerdictCard(
             )
             Text(text = body, style = MaterialTheme.typography.bodyMedium)
             hint?.let { Text(text = it, style = MaterialTheme.typography.bodySmall) }
+            report?.let { ReportProblemButton(it) }
         }
     }
 }

@@ -1,7 +1,9 @@
 {
   "_comment": [
-    "Creality material catalog: the 5-digit IDs that go in payload field [12,17).",
+    "Built-in material catalog: the 5-digit IDs that go in payload field [12,17).",
     "The printer uses this ID to select print settings, so it must match an entry the firmware knows.",
+    "The user extends and edits this list in the app; those changes are stored separately as a",
+    "MaterialOverlay and merged over this list, so editing this file never touches what a user did.",
     "",
     "Provenance: user-supplied 2026-08-04. Substantially more complete than db/k2.json in the",
     "community reference repo, which stops at 00007 and omits HIPS and everything above it.",

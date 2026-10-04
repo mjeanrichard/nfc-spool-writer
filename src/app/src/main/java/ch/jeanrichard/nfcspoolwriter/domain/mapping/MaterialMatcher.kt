@@ -136,6 +136,9 @@ sealed interface MaterialMatch {
     /** The catalog names this material, or its family, exactly. */
     data class Exact(override val entry: MaterialEntry) : MaterialMatch
 
+    /** Picked by the user on the confirm screen, overriding whatever matching would have found. */
+    data class Chosen(override val entry: MaterialEntry) : MaterialMatch
+
     /**
      * A same-family substitution. Not silent: [reason] is shown on the confirm screen so the user sees
      * that the printer will apply a profile for something slightly different.

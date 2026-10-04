@@ -3,11 +3,12 @@ package ch.jeanrichard.nfcspoolwriter.ui.read
 import android.nfc.Tag
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import ch.jeanrichard.nfcspoolwriter.data.materials.MaterialCatalog
+import ch.jeanrichard.nfcspoolwriter.data.materials.MaterialCatalogRepository
 import ch.jeanrichard.nfcspoolwriter.data.nfc.DeviceCompatibility
 import ch.jeanrichard.nfcspoolwriter.data.nfc.MifareSession
 import ch.jeanrichard.nfcspoolwriter.data.nfc.MifareTagReaderWriter
 import ch.jeanrichard.nfcspoolwriter.data.nfc.TagReadResult
+import ch.jeanrichard.nfcspoolwriter.data.report.ErrorReport
 import ch.jeanrichard.nfcspoolwriter.data.spoolman.SpoolmanRepository
 import ch.jeanrichard.nfcspoolwriter.data.spoolman.SpoolmanResult
 import ch.jeanrichard.nfcspoolwriter.domain.model.MappedFields
@@ -18,6 +19,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -37,7 +39,7 @@ import kotlinx.coroutines.launch
  */
 class ReadTagViewModel(
     private val tagReaderWriter: MifareTagReaderWriter,
-    private val materialCatalog: MaterialCatalog,
+    private val materialCatalogRepository: MaterialCatalogRepository,
     private val spoolmanRepository: SpoolmanRepository,
     val compatibility: DeviceCompatibility,
     private val openSession: (Tag) -> MifareSession?,
@@ -77,7 +79,9 @@ class ReadTagViewModel(
             val session = openSession(tag)
             if (session == null) {
                 // Wrong *tag*, distinct from wrong *phone* — see DeviceCompatibility.
-                finish(ReadOutcome.Failed(NOT_MIFARE_CLASSIC_MESSAGE, retryable = false))
+                finish(
+                    ReadOutcome.Failed(NOT_MIFARE_CLASSIC_MESSAGE, retryable = false, report = null)
+                )
                 return@launch
             }
 
@@ -95,6 +99,7 @@ class ReadTagViewModel(
                     ReadOutcome.Failed(
                         text = result.failure.userMessage(),
                         retryable = result.failure.retryable,
+                        report = ErrorReport.tagFailure("read", result.failure),
                     )
                 )
             }
@@ -119,8 +124,9 @@ class ReadTagViewModel(
         }
     }
 
-    private fun summarize(fields: MappedFields) = TagSummary(
-        materialName = materialCatalog.findById(fields.filamentCatalogId)?.name,
+    private suspend fun summarize(fields: MappedFields) = TagSummary(
+        materialName = materialCatalogRepository.catalog.first()
+            .findById(fields.filamentCatalogId)?.name,
         materialId = fields.filamentCatalogId,
         colorRgb = fields.normalizedColorRgb,
         weightGrams = fields.weight.grams,
@@ -170,7 +176,15 @@ sealed interface ReadOutcome {
      */
     data object Corrupt : ReadOutcome
 
-    data class Failed(val text: String, val retryable: Boolean) : ReadOutcome
+    /**
+     * @param report what the user can send if they think this should not have happened; null when
+     *   the tag is simply the wrong kind, which no report could explain better.
+     */
+    data class Failed(
+        val text: String,
+        val retryable: Boolean,
+        val report: ErrorReport?,
+    ) : ReadOutcome
 }
 
 /**

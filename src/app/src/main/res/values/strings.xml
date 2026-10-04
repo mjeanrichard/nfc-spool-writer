@@ -23,6 +23,8 @@
     <string name="title_write">Write tags</string>
     <string name="title_read">Check a tag</string>
     <string name="title_harness">Tag harness</string>
+    <string name="title_materials">Materials</string>
+    <string name="title_material">Material</string>
 
     <!-- Settings -->
     <string name="settings_server_label">Spoolman server</string>
@@ -37,6 +39,23 @@
         needed. If your instance sits behind a reverse proxy that requires authentication, this app
         cannot get past it.</string>
     <string name="settings_open_harness">Open tag harness (development)</string>
+    <string name="settings_materials_title">Materials</string>
+    <string name="settings_materials_row">Material list</string>
+    <plurals name="settings_materials_count">
+        <item quantity="one">%1$d material</item>
+        <item quantity="other">%1$d materials</item>
+    </plurals>
+    <plurals name="settings_materials_added">
+        <item quantity="one">%1$d added</item>
+        <item quantity="other">%1$d added</item>
+    </plurals>
+    <plurals name="settings_materials_edited">
+        <item quantity="one">%1$d edited</item>
+        <item quantity="other">%1$d edited</item>
+    </plurals>
+    <string name="settings_materials_hint">The materials the printer knows, and the family each one
+        belongs to. Add what your printer\'s firmware supports, or fix a family so a Spoolman material
+        matches.</string>
     <string name="settings_about_title">About</string>
     <string name="settings_about_body">Writes filament data to NFC tags for spools you own, in the
         format the Creality K2, K2 Plus and K2 Max CFS reads. This app is not affiliated with,
@@ -67,8 +86,17 @@
         by hand.</string>
     <string name="confirm_write">Write to tag</string>
     <string name="confirm_unmappable_title">Cannot write this spool</string>
-    <string name="confirm_unmappable_hint">Set a material Creality recognises on this filament in
-        Spoolman, then come back.</string>
+    <string name="confirm_unmappable_hint">Choose a material here, or set a material Creality
+        recognises on this filament in Spoolman and come back.</string>
+    <string name="confirm_choose_material">Choose material</string>
+    <string name="confirm_change_material">Change</string>
+    <string name="confirm_chosen_by_hand">Chosen by hand for this write</string>
+    <string name="confirm_pick_title">Choose a material</string>
+    <string name="confirm_pick_search">Search materials</string>
+    <string name="confirm_pick_suggested">Same family</string>
+    <string name="confirm_pick_all">All materials</string>
+    <string name="confirm_pick_automatic">Back to the automatic choice</string>
+    <string name="confirm_pick_none">No materials match.</string>
     <string name="field_material">Material</string>
     <string name="field_colour">Colour</string>
     <string name="field_weight">Spool weight</string>
@@ -76,6 +104,46 @@
     <string name="field_supplier">Supplier ID</string>
     <string name="field_batch">Batch</string>
     <string name="field_date">Date code</string>
+
+    <!-- Material list -->
+    <string name="materials_search_label">Search materials</string>
+    <string name="materials_none">No materials match your search.</string>
+    <string name="materials_add">Add material</string>
+    <string name="materials_badge_added">Added</string>
+    <string name="materials_badge_edited">Edited</string>
+    <string name="materials_deprecated">Deprecated</string>
+    <string name="materials_no_family">No family</string>
+    <string name="materials_family_unknown">\?</string>
+    <string name="materials_reset">Reset to built-in list</string>
+    <string name="materials_reset_title">Reset the material list?</string>
+    <string name="materials_reset_body">Every material you added, and every change to a built-in
+        one, will be removed.</string>
+    <string name="materials_reset_confirm">Reset</string>
+
+    <!-- Material editor -->
+    <string name="material_missing">This material no longer exists.</string>
+    <string name="material_builtin_note">Built-in material. Its ID is fixed by the printer; the
+        other values can be changed.</string>
+    <string name="material_id_label">ID</string>
+    <string name="material_id_hint">Five digits. The printer picks its print settings by this
+        number, so it must be one the firmware knows.</string>
+    <string name="material_id_error_format">Must be exactly 5 digits</string>
+    <string name="material_id_error_taken">Already used by %1$s</string>
+    <string name="material_name_label">Name</string>
+    <string name="material_brand_label">Brand</string>
+    <string name="material_family_label">Family</string>
+    <string name="material_family_hint">The material type Spoolman is matched against, e.g. PLA or
+        PETG. Leave empty only if unsure: the entry is then never chosen automatically.</string>
+    <string name="material_required">Required</string>
+    <string name="material_deprecated_label">Deprecated</string>
+    <string name="material_deprecated_hint">Kept so tags carrying it can be read, but never written
+        to new tags.</string>
+    <string name="material_save">Save</string>
+    <string name="material_delete">Delete</string>
+    <string name="material_revert">Revert to built-in values</string>
+    <string name="material_delete_title">Delete this material?</string>
+    <string name="material_delete_body">Tags already written with ID %1$s keep it; this app will
+        just no longer know its name.</string>
 
     <!-- Read and check -->
     <string name="read_tap">Hold the phone against a tag to see what is on it. Nothing is written.</string>
@@ -122,6 +190,17 @@
         tag — worth doing for a genuine Creality tag, whose own data cannot be recreated once it is
         replaced.</string>
     <string name="write_overwrite_id_only">Change spool ID only</string>
+
+    <!-- Error reports -->
+    <string name="crash_report_title">The app closed unexpectedly</string>
+    <string name="crash_report_body">NFC Spool Writer stopped working last time it was used. Sending
+        a report helps get this fixed.</string>
+    <string name="report_privacy_note">The report opens in your email app, so you can read and edit
+        it before sending. It contains the error details, the app version, and your phone model and
+        Android version. Server addresses, tag IDs and spool data are removed.</string>
+    <string name="action_send_report">Send report</string>
+    <string name="action_not_now">Not now</string>
+    <string name="action_report_problem">Report a problem</string>
 
     <!-- NFC capability -->
     <string name="nfc_no_hardware">This device has no NFC hardware, so it cannot write tags.</string>

@@ -66,7 +66,8 @@ to be fixed:
   Creality's fixed encodings — weight buckets, material IDs, batch codes — so the app maps to the
   nearest valid value and fills documented defaults for anything Spoolman does not carry. Every
   approximation is shown on the confirm screen. **Read that screen.** A material mapped to the
-  nearest neighbour is a tag your printer will believe.
+  nearest neighbour is a tag your printer will believe. If the match is wrong, change the material
+  right there; if the material your printer knows is missing from the list, add it in Settings.
 - **The format is reverse-engineered.** Creality does not document it and there is no compatibility
   guarantee from anyone. A CFS firmware update could change what the reader accepts, and the only
   way that becomes known is someone hitting it.
@@ -125,11 +126,12 @@ Reference projects are credited in [REQUIREMENTS.md](REQUIREMENTS.md) §2.
 
 ## Privacy
 
-The app collects nothing. No accounts, no analytics, no crash reporting, no advertising, no
-third-party SDKs of any kind.
+The app collects nothing. No accounts, no analytics, no automatic crash reporting, no advertising,
+no third-party SDKs of any kind. After a crash or a tag error it offers to open an error report in
+your own email app, with addresses, tag IDs and spool data removed; it is sent only if you send it.
 
-It stores exactly one thing — the Spoolman address you type into Settings — and talks to no server
-other than that one, read-only. It requests two permissions: `NFC`, and `INTERNET` to reach the
+It stores two things — the Spoolman address you type into Settings, and any changes you make to
+the material list — and talks to no server other than that one, read-only. It requests two permissions: `NFC`, and `INTERNET` to reach the
 address you supply. Full text in the [privacy policy](https://mjeanrichard.github.io/nfc-spool-writer/privacy-policy).
 
 ## Security

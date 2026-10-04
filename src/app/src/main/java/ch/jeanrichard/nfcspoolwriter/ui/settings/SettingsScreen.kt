@@ -1,5 +1,6 @@
 package ch.jeanrichard.nfcspoolwriter.ui.settings
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -13,6 +14,8 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -20,6 +23,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -34,6 +39,7 @@ import ch.jeanrichard.nfcspoolwriter.R
 @Composable
 fun SettingsScreen(
     viewModel: SettingsViewModel,
+    onOpenMaterials: () -> Unit,
     onOpenHarness: (() -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
@@ -103,6 +109,28 @@ fun SettingsScreen(
         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
         Text(
+            text = stringResource(R.string.settings_materials_title),
+            style = MaterialTheme.typography.titleMedium,
+        )
+        Text(
+            text = stringResource(R.string.settings_materials_hint),
+            style = MaterialTheme.typography.bodySmall,
+        )
+        ListItem(
+            headlineContent = { Text(stringResource(R.string.settings_materials_row)) },
+            supportingContent = state.materials?.let { { Text(it.describe()) } },
+            trailingContent = {
+                Icon(
+                    painter = painterResource(R.drawable.ic_chevron_right),
+                    contentDescription = null,
+                )
+            },
+            modifier = Modifier.clickable(onClick = onOpenMaterials),
+        )
+
+        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+        Text(
             text = stringResource(R.string.settings_about_title),
             style = MaterialTheme.typography.titleMedium,
         )
@@ -121,6 +149,14 @@ fun SettingsScreen(
         }
     }
 }
+
+/** "52 materials · 2 added · 1 edited", dropping the counts that are zero. */
+@Composable
+private fun MaterialSummary.describe(): String = listOfNotNull(
+    pluralStringResource(R.plurals.settings_materials_count, total, total),
+    pluralStringResource(R.plurals.settings_materials_added, custom, custom).takeIf { custom > 0 },
+    pluralStringResource(R.plurals.settings_materials_edited, edited, edited).takeIf { edited > 0 },
+).joinToString(" · ")
 
 @Composable
 private fun ResultCard(text: String, isError: Boolean) {

@@ -101,6 +101,13 @@ devices. The meaningful signal is the **`com.nxp.mifare`** system feature.
   encodings (weight buckets, material IDs, batch codes). The app **best-effort auto-maps** Spoolman
   fields to the nearest valid Creality encoding and applies documented defaults for anything Spoolman
   doesn't provide. Every approximation is surfaced on the confirm screen.
+- `REQ-04a` — **Material override:** when the automatic material match is wrong or absent, the user
+  can pick the material by hand on the confirm screen, for that write only, from the same catalog the
+  matcher uses.
+- `REQ-04b` — **User-maintained material catalog:** the material list ships with the app but is
+  editable in Settings — materials can be added, built-in ones edited (family, name, deprecated
+  flag) or reverted, and the whole list reset — so a firmware ID the app does not know, or a family
+  it got wrong, does not need an app release to fix.
 - `REQ-05` — **Confirm-before-write:** the user sees the mapped values before anything is written.
   This is the guard against a bad auto-mapping being burned onto a tag and only discovered at the
   printer.
@@ -248,6 +255,8 @@ devices. The meaningful signal is the **`com.nxp.mifare`** system feature.
   rather than plain DataStore.
 - `NFR-13` — No analytics/telemetry/crash-reporting SDKs — this is a personal tool talking to a
   self-hosted server; don't add a third-party data path without it being explicitly requested.
+  Crashes and tag failures are reported only as an email draft the user opens in their own mail
+  app and chooses to send, with server addresses, tag IDs and spool data redacted first.
 
 ### 7.3 Performance
 - `NFR-14` — **Performance:** no specific latency budget beyond "feels responsive" — NFC MIFARE

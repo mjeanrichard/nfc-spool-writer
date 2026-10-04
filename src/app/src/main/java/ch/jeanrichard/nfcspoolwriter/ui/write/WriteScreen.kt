@@ -30,6 +30,7 @@ import ch.jeanrichard.nfcspoolwriter.data.nfc.DeviceCompatibility
 import ch.jeanrichard.nfcspoolwriter.data.nfc.OverwriteMode
 import ch.jeanrichard.nfcspoolwriter.ui.confirm.MessageWithRetry
 import ch.jeanrichard.nfcspoolwriter.ui.nfc.NfcReaderEffect
+import ch.jeanrichard.nfcspoolwriter.ui.report.ReportProblemButton
 
 @Composable
 fun WriteScreen(
@@ -179,7 +180,6 @@ fun WriteScreen(
 
 @Composable
 private fun MessageCard(message: WriteMessage) {
-    val isError = message is WriteMessage.Failed
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier.padding(12.dp),
@@ -215,11 +215,12 @@ private fun MessageCard(message: WriteMessage) {
                     }
                 }
             }
-            if (isError) {
+            if (message is WriteMessage.Failed) {
                 Text(
                     text = stringResource(R.string.write_retry_hint),
                     style = MaterialTheme.typography.bodySmall,
                 )
+                ReportProblemButton(message.report)
             }
         }
     }
