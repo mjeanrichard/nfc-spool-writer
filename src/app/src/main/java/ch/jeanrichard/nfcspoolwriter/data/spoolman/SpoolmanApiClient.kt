@@ -2,16 +2,19 @@ package ch.jeanrichard.nfcspoolwriter.data.spoolman
 
 import ch.jeanrichard.nfcspoolwriter.domain.model.Spool
 import io.ktor.client.HttpClient
+import io.ktor.client.call.NoTransformationFoundException
 import io.ktor.client.call.body
 import io.ktor.client.plugins.HttpRequestTimeoutException
 import io.ktor.client.request.get
 import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
+import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.URLBuilder
 import io.ktor.http.URLParserException
 import io.ktor.http.Url
 import io.ktor.http.appendPathSegments
+import io.ktor.http.contentType
 import io.ktor.http.isSuccess
 import io.ktor.http.takeFrom
 import io.ktor.serialization.JsonConvertException
@@ -106,11 +109,11 @@ class SpoolmanApiClient(private val httpClient: HttpClient) {
         val response = try {
             httpClient.get(url)
         } catch (e: IOException) {
-            return SpoolmanResult.Failure(SpoolmanError.Unreachable(baseUrl, e))
+            return SpoolmanResult.Failure(SpoolmanError.Unreachable(baseUrl, e, url))
         } catch (e: TimeoutCancellationException) {
-            return SpoolmanResult.Failure(SpoolmanError.Unreachable(baseUrl, e))
+            return SpoolmanResult.Failure(SpoolmanError.Unreachable(baseUrl, e, url))
         } catch (e: HttpRequestTimeoutException) {
-            return SpoolmanResult.Failure(SpoolmanError.Unreachable(baseUrl, e))
+            return SpoolmanResult.Failure(SpoolmanError.Unreachable(baseUrl, e, url))
         }
 
         if (!response.status.isSuccess()) {
@@ -118,15 +121,26 @@ class SpoolmanApiClient(private val httpClient: HttpClient) {
                 return SpoolmanResult.Failure(notFoundError())
             }
             val body = runCatching { response.bodyAsText().take(ERROR_BODY_LIMIT) }.getOrNull()
-            return SpoolmanResult.Failure(SpoolmanError.HttpStatus(response.status.value, body))
+            return SpoolmanResult.Failure(SpoolmanError.HttpStatus(response.status.value, body, url))
         }
+
+        fun malformed(e: Exception) = SpoolmanResult.Failure(
+            SpoolmanError.MalformedResponse(
+                detail = e.message,
+                requested = url,
+                receivedHtml = response.contentType()?.match(ContentType.Text.Html) == true,
+            )
+        )
 
         return try {
             SpoolmanResult.Success(parse(response))
         } catch (e: SerializationException) {
-            SpoolmanResult.Failure(SpoolmanError.MalformedResponse(e.message))
+            malformed(e)
         } catch (e: JsonConvertException) {
-            SpoolmanResult.Failure(SpoolmanError.MalformedResponse(e.message))
+            malformed(e)
+        } catch (e: NoTransformationFoundException) {
+            // Not JSON at all: ContentNegotiation has no converter for, say, text/html.
+            malformed(e)
         }
     }
 

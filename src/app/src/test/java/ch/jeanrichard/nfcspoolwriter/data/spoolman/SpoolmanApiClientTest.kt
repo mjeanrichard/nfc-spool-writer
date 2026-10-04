@@ -14,6 +14,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.IOException
+import java.net.UnknownHostException
 
 class SpoolmanApiClientTest {
 
@@ -361,6 +362,19 @@ class SpoolmanApiClientTest {
         assertTrue((result as SpoolmanResult.Failure).error is SpoolmanError.MalformedResponse)
     }
 
+    /** A router admin page or captive portal on the address answers 200 with HTML, not JSON. */
+    @Test
+    fun `an html page is a malformed response that says a web page answered`() = runTest {
+        val html = headersOf(HttpHeaders.ContentType, ContentType.Text.Html.toString())
+
+        val result = client(headers = html) { "<html><body>Router login</body></html>" }
+            .testConnection(baseUrl)
+
+        val error = (result as SpoolmanResult.Failure).error
+        assertTrue("expected MalformedResponse, was $error", error is SpoolmanError.MalformedResponse)
+        assertTrue(error.userMessage, error.userMessage.contains("web page"))
+    }
+
     @Test
     fun `a healthy response succeeds`() = runTest {
         val result = client { """{"status":"healthy"}""" }.testConnection(baseUrl)
@@ -425,6 +439,35 @@ class SpoolmanApiClientTest {
         val error = (result as SpoolmanResult.Failure).error
         assertTrue("expected Unreachable, was $error", error is SpoolmanError.Unreachable)
         assertTrue(error.userMessage.contains(baseUrl))
+    }
+
+    @Test
+    fun `an unreachable error carries the url that was requested`() = runTest {
+        val result = failingClient(UnknownHostException("spoolman.local")).testConnection(baseUrl)
+
+        val error = (result as SpoolmanResult.Failure).error as SpoolmanError.Unreachable
+        assertEquals("$baseUrl/api/v1/health", error.requested.toString())
+        assertEquals(UnreachableReason.HostNotFound, error.reason)
+    }
+
+    /** A pasted API address gets the prefix twice; the message must show the doubled path. */
+    @Test
+    fun `an http error carries the url that was requested`() = runTest {
+        val client = SpoolmanApiClient(
+            createSpoolmanHttpClient(MockEngine { respondError(HttpStatusCode.NotFound) })
+        )
+
+        val error = (client.testConnection("$baseUrl/api/v1") as SpoolmanResult.Failure).error
+
+        assertTrue(error.userMessage, error.userMessage.contains("$baseUrl/api/v1/api/v1/health"))
+    }
+
+    @Test
+    fun `a json body that fails to parse is not reported as a web page`() = runTest {
+        val error = (client { "{ nope" }.listSpools(baseUrl) as SpoolmanResult.Failure).error
+
+        assertEquals(false, (error as SpoolmanError.MalformedResponse).receivedHtml)
+        assertEquals("$baseUrl/api/v1/spool", error.requested?.encodedPath?.let { "$baseUrl$it" })
     }
 
     @Test
