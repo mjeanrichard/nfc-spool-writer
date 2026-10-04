@@ -1,0 +1,34 @@
+name: Dependabot auto-merge
+
+# Queues Dependabot's patch and minor updates for auto-merge. Nothing merges from here directly: the
+# master ruleset requires the `check` status, so GitHub only merges once the full verification pass
+# is green. Majors are left for a human, since they are the updates worth reading about first.
+on:
+  pull_request:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  automerge:
+    runs-on: ubuntu-latest
+    # The author makes it a Dependabot PR; the actor check skips runs triggered by anyone else pushing
+    # to that branch, so a hand-edited update is never queued without review.
+    if: github.event.pull_request.user.login == 'dependabot[bot]' && github.actor == 'dependabot[bot]'
+
+    # Pinned to a commit SHA like every other action in this repository; the `# vX.Y.Z` comment is
+    # what Dependabot reads to keep the pin current.
+    steps:
+      - name: Fetch Dependabot metadata
+        id: metadata
+        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
+
+      # For a grouped PR, update-type is the largest bump in the group, so one major member keeps the
+      # whole group out of auto-merge. Rebase is the only merge method the repository allows.
+      - name: Enable auto-merge
+        if: steps.metadata.outputs.update-type != 'version-update:semver-major'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: gh pr merge --auto --rebase "$PR_URL"
